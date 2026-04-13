@@ -1,0 +1,763 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jaidah Automotive CX Roster Planner</title>
+<style>
+:root{--bg:#070b14;--bg2:#0b1220;--card:rgba(17,25,40,.58);--card-soft:rgba(30,41,59,.42);--ink:#e5edf7;--muted:#9fb0c5;--line:rgba(148,163,184,.23);--nav:rgba(15,23,42,.8);--brand:#3b82f6;--ok:#86efac;--warn:#fde68a;--bad:#fecaca;--off:rgba(71,85,105,.28);--leave:rgba(180,83,9,.2);--fixed:rgba(37,99,235,.2);--work:rgba(22,163,74,.18)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:radial-gradient(1300px 720px at 10% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font-size:13px}
+body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--card:rgba(255,255,255,.84);--card-soft:rgba(255,255,255,.75);--ink:#0f172a;--muted:#475569;--line:rgba(100,116,139,.25);--nav:rgba(15,23,42,.9);--brand:#2563eb;--ok:#166534;--warn:#92400e;--bad:#991b1b;--off:rgba(203,213,225,.45);--leave:rgba(251,146,60,.22);--fixed:rgba(147,197,253,.35);--work:rgba(134,239,172,.32);background:radial-gradient(1200px 700px at 0% -10%,#bfdbfe 0%,transparent 58%),radial-gradient(1000px 700px at 100% 0%,#dbeafe 0%,transparent 55%),linear-gradient(160deg,#eff6ff,#f8fafc)}
+button,input,select,textarea{font:inherit}
+.layout{display:flex;min-height:100vh}
+.side{width:230px;background:var(--nav);color:#fff;display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(14px);border-right:1px solid var(--line)}
+.brand{padding:18px 16px;border-bottom:1px solid rgba(148,163,184,.2)}
+.brand h2{font-size:16px;margin-bottom:4px}.brand p{font-size:11px;color:rgba(226,232,240,.64);line-height:1.45}
+.nb{display:block;width:100%;padding:11px 16px;background:none;border:none;color:rgba(226,232,240,.75);text-align:left;cursor:pointer;font-size:12px;transition:all .2s ease}
+.nb.on,.nb:hover{background:rgba(59,130,246,.22);color:#fff;transform:translateX(2px)}
+.foot{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(148,163,184,.2);font-size:11px;color:rgba(226,232,240,.55)}
+.main{flex:1;display:flex;flex-direction:column}
+.top{background:rgba(15,23,42,.58);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;backdrop-filter:blur(12px)}
+.top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
+.controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.field input,.field select,.field textarea{padding:8px 10px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;min-width:120px;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
+.field input::placeholder,.field textarea::placeholder{color:#8ba0b8}
+.field select option{background:#0f172a;color:#dbeafe}
+.field input[type="date"],.field input[type="month"],.field input[type="password"]{color-scheme:dark}
+.agentEdit{width:100%;padding:7px 9px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
+.agentEdit:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
+.agentEdit option{background:#0f172a;color:#dbeafe}
+.pg{padding:18px 20px}
+#app.week-next{animation:weekSlideNext .4s ease}
+#app.week-prev{animation:weekSlidePrev .4s ease}
+#app.week-fade .met > *,#app.week-fade .card > *,#app.week-fade .wc > *,#app.week-fade .wagent > *,#app.week-fade .daycard > *{animation:detailPulse .24s ease}
+@keyframes weekSlideNext{from{opacity:.3;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes weekSlidePrev{from{opacity:.3;transform:translateX(-28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.met{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;backdrop-filter:blur(10px);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.met:hover{transform:translateY(-3px);box-shadow:0 12px 24px rgba(2,8,22,.45);border-color:rgba(96,165,250,.45)}
+.met .l{font-size:11px;color:var(--muted);margin-bottom:4px}.met .v{font-size:24px;font-weight:700}.met .s{font-size:11px;color:var(--muted)}
+.card{background:var(--card-soft);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;backdrop-filter:blur(10px);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.card:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.42);box-shadow:0 12px 24px rgba(2,8,22,.42)}
+.ch{font-size:14px;font-weight:700;margin-bottom:12px}
+.note,.ok,.warn,.bad{padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:12px;line-height:1.45;backdrop-filter:blur(8px)}
+.note{background:rgba(30,58,138,.2);border:1px solid rgba(147,197,253,.34);color:#bfdbfe}
+.ok{background:rgba(21,128,61,.2);border:1px solid rgba(74,222,128,.35);color:var(--ok)}
+.warn{background:rgba(146,64,14,.25);border:1px solid rgba(251,191,36,.35);color:var(--warn)}
+.bad{background:rgba(153,27,27,.25);border:1px solid rgba(252,165,165,.35);color:var(--bad)}
+.btn{padding:8px 12px;border:1px solid rgba(148,163,184,.36);background:rgba(30,41,59,.6);color:#dbeafe;border-radius:8px;cursor:pointer;transition:all .2s ease}
+.btn:hover{background:rgba(59,130,246,.24);transform:translateY(-1px)}
+.btnp{background:linear-gradient(120deg,#2563eb,#0ea5e9);border-color:rgba(59,130,246,.8);color:#fff}
+.btnp:hover{filter:brightness(1.08)}
+.btnr{background:rgba(153,27,27,.2);border-color:rgba(252,165,165,.4);color:#fecdd3}
+.tbl{width:100%;border-collapse:collapse}.tbl th{font-size:11px;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line);font-weight:600}.tbl td{padding:8px;border-bottom:1px solid rgba(148,163,184,.14);vertical-align:middle}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid}.p-work{background:rgba(22,163,74,.2);color:#86efac;border-color:rgba(34,197,94,.4)}.p-fixed{background:rgba(37,99,235,.23);color:#bfdbfe;border-color:rgba(96,165,250,.45)}.p-off{background:rgba(71,85,105,.35);color:#cbd5e1;border-color:rgba(148,163,184,.35)}.p-leave{background:rgba(194,65,12,.25);color:#fed7aa;border-color:rgba(251,146,60,.35)}.p-sh1{background:rgba(37,99,235,.25);color:#bfdbfe;border-color:rgba(96,165,250,.45)}.p-sh2{background:rgba(109,40,217,.23);color:#ddd6fe;border-color:rgba(196,181,253,.4)}
+.weekgrid{display:grid;grid-template-columns:220px repeat(7,minmax(120px,1fr));gap:6px;align-items:stretch}
+.wh,.wc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;backdrop-filter:blur(8px)}.wh{font-size:11px;color:var(--muted);font-weight:700;text-align:center}.wc{transition:transform .2s ease,border-color .2s ease}.wc:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.4)}.wc .st{font-size:11px;font-weight:700;margin-bottom:5px}.wc .tm{font-size:11px;color:var(--muted);margin-bottom:4px}.wc .br{font-size:10px;color:#cbd5e1;line-height:1.45}
+.wagent{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;backdrop-filter:blur(8px);transition:transform .2s ease,border-color .2s ease}.wagent:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.35)}
+.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:#1e3a8a;color:#dbeafe;flex-shrink:0}
+.rowflex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tight input,.tight select{min-width:auto;width:100%}
+.leave-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
+.small{font-size:11px;color:var(--muted)}
+.exporttxt{width:100%;height:200px;border:1px solid rgba(148,163,184,.38);border-radius:10px;padding:10px;background:rgba(15,23,42,.72);color:#dbeafe;resize:vertical}
+.exporttxt:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18)}
+body.light-theme .field input,body.light-theme .field select,body.light-theme .field textarea,body.light-theme .agentEdit,body.light-theme .exporttxt{background:rgba(255,255,255,.82);color:#0f172a;border-color:rgba(100,116,139,.35)}
+body.light-theme .field input:focus,body.light-theme .field select:focus,body.light-theme .field textarea:focus,body.light-theme .agentEdit:focus,body.light-theme .exporttxt:focus{background:#fff}
+body.light-theme .field select option,body.light-theme .agentEdit option{background:#fff;color:#0f172a}
+body.light-theme .field input[type="date"],body.light-theme .field input[type="month"],body.light-theme .field input[type="password"]{color-scheme:light}
+body.light-theme .btn{background:rgba(255,255,255,.8);color:#0f172a}
+body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
+@media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.layout{display:block}.side{width:100%}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+
+body.agent-mode .side{display:none}
+body.agent-mode .top{align-items:center}
+body.agent-mode .top h1{margin-bottom:0}
+.linkbox{font-size:11px;color:#cbd5e1;background:rgba(15,23,42,.64);border:1px solid var(--line);border-radius:10px;padding:8px 10px;word-break:break-all}
+.daycards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.daycard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;backdrop-filter:blur(8px);transition:transform .2s ease,border-color .2s ease}
+.daycard:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.38)}
+.daycard h4{font-size:13px;margin-bottom:8px}
+.kv{font-size:12px;color:#d1d5db;line-height:1.6}
+
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <div class="brand">
+      <h2>Jaidah Automotive</h2>
+      <p>CX roster planner<br>Friday fixed off · weekly auto-plan · leave-driven edits</p>
+    </div>
+    <button class="nb on" data-page="dashboard">Dashboard</button>
+    <button class="nb" data-page="weekly">Weekly Planner</button>
+    <button class="nb" data-page="leave">Leave Control</button>
+    <button class="nb" data-page="breaks">Break Control</button>
+    <button class="nb" data-page="team">Team Setup</button>
+    <button class="nb" data-page="admin">Admin</button>
+    <div class="foot">Built for your CX operation<br>Auto-generate first, edit only when needed</div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="sub">Selected week drives the roster. Friday is always OFF. App generates the week, you edit only where needed.</div>
+      </div>
+      <div class="controls">
+        <div class="field"><label>Month</label><input type="month" id="monthPicker"></div>
+        <div class="field"><label>Week</label><select id="weekPicker"></select></div>
+        <button class="btn" id="prevWeek">← Week</button>
+        <button class="btn" id="nextWeek">Week →</button>
+        <button class="btn" id="themeToggle">Light mode</button>
+      </div>
+    </div>
+    <div class="pg" id="app"></div>
+  </main>
+</div>
+<script>
+const STORAGE_KEY='jaidah_roster_v26';
+const CLOUD_MASTER_KEY='jaidah_cloud_master_key_v26';
+const THEME_KEY='jaidah_theme_v1';
+const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
+let syncTimer=null;
+let cloudStatus={binId: BIN_PARAM || '', masterKey: localStorage.getItem(CLOUD_MASTER_KEY)||'', saving:false, lastSaved:'', lastError:'', connected:false};
+const defaultAgents=[
+{id:1,name:'Jofferson Nucup',lang:'English',shift:1,active:true,preferredOff:2},
+{id:2,name:'Ghizlen',lang:'English/Arabic',shift:1,active:true,preferredOff:0},
+{id:3,name:'Karen Roco',lang:'English',shift:1,active:true,preferredOff:0},
+{id:4,name:'Mohamed Amine',lang:'English/Arabic',shift:1,active:true,preferredOff:3},
+{id:5,name:'Souhire',lang:'English/Arabic',shift:1,active:true,preferredOff:4},
+{id:6,name:'Abbey Rose',lang:'English',shift:1,active:true,preferredOff:6},
+{id:7,name:'Habiba Selimi',lang:'English/Arabic',shift:1,active:true,preferredOff:3},
+{id:8,name:'Mohamed Khadraoui',lang:'English/Arabic',shift:1,active:true,preferredOff:2},
+{id:9,name:'Sief Al Dine',lang:'Arabic',shift:1,active:true,preferredOff:1},
+{id:10,name:'Hssan Boussetta',lang:'English/Arabic',shift:2,active:true,preferredOff:4},
+{id:11,name:'Lee Jerick',lang:'English/Arabic',shift:2,active:true,preferredOff:0},
+{id:12,name:'Abderahman',lang:'English/Arabic',shift:2,active:true,preferredOff:2},
+{id:13,name:'Ghada',lang:'English/Arabic',shift:2,active:true,preferredOff:3},
+{id:14,name:'Chrstine',lang:'English/Arabic',shift:2,active:true,preferredOff:2},
+{id:15,name:'Ma Cristina Beltran',lang:'English/Arabic',shift:2,active:true,preferredOff:1}
+];
+const requiredByDay={6:10,0:11,1:11,2:11,3:10,4:9,5:0}; // Sat-Fri as JS day numbers
+const shiftLabel={1:'08:00-17:30',2:'09:30-19:00'};
+const breakTemplates={
+1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
+2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
+};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
+let state=loadState();
+const urlParams=new URLSearchParams(location.search);
+const agentView=urlParams.get('view')==='agent';
+const agentViewId=Number(urlParams.get('agent')||0);
+let currentPage=agentView?'dashboard':'dashboard';
+if(agentView) document.body.classList.add('agent-mode');
+
+function currentTheme(){
+  return localStorage.getItem(THEME_KEY) || 'dark';
+}
+function applyTheme(theme){
+  document.body.classList.toggle('light-theme', theme==='light');
+  const btn=document.getElementById('themeToggle');
+  if(btn) btn.textContent = theme==='light' ? 'Dark mode' : 'Light mode';
+}
+function toggleTheme(){
+  const next=currentTheme()==='light' ? 'dark' : 'light';
+  localStorage.setItem(THEME_KEY,next);
+  applyTheme(next);
+}
+applyTheme(currentTheme());
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed=JSON.parse(raw);
+      parsed.agents ||= JSON.parse(JSON.stringify(defaultAgents));
+      parsed.leaves ||= [];
+      parsed.weekOverrides ||= {};
+      parsed.month ||= todayMonth();
+      parsed.selectedWeek ||= 0;
+      parsed.breakOverrides ||= {};
+      return parsed;
+    }
+  }catch(e){}
+  return {agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0};
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  if(cloudStatus.binId && cloudStatus.masterKey) scheduleCloudSave();
+}
+function todayMonth(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function pad(n){return String(n).padStart(2,'0');}
+function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
+function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
+function shuffleInPlace(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function pickBalancedShift(counters,key){
+  const s1=counters[1], s2=counters[2];
+  if(s1.total!==s2.total) return s1.total<s2.total ? 1 : 2;
+  if(s1[key]!==s2[key]) return s1[key]<s2[key] ? 1 : 2;
+  return Math.random()<0.5 ? 1 : 2;
+}
+function autoAssignBalancedShifts(){
+  const active=state.agents.filter(a=>a.active);
+  const arabic=[];
+  const english=[];
+  active.forEach(a=>{ (/Arabic/i.test(a.lang) ? arabic : english).push(a); });
+  shuffleInPlace(arabic);
+  shuffleInPlace(english);
+  const counters={1:{total:0,arabic:0,english:0},2:{total:0,arabic:0,english:0}};
+  function assign(agent,key){
+    const shift=pickBalancedShift(counters,key);
+    agent.shift=shift;
+    counters[shift].total++;
+    counters[shift][key]++;
+  }
+  arabic.forEach(a=>assign(a,'arabic'));
+  english.forEach(a=>assign(a,'english'));
+  return {updated:active.length,counters};
+}
+function getMonthInfo(monthStr){
+  const [y,m]=monthStr.split('-').map(Number); const first=new Date(y,m-1,1); const last=new Date(y,m,0); const weeks=[];
+  let start=new Date(first); while(start.getDay()!==6) start.setDate(start.getDate()-1); // back to Saturday
+  while(start<=last || start.getDay()!==6 || weeks.length===0){
+    const s=new Date(start); const e=new Date(start); e.setDate(e.getDate()+6); weeks.push({start:s,end:e,label:`${humanDate(s)} - ${humanDate(e)}`}); start.setDate(start.getDate()+7);
+    if(start>last && start.getMonth()!==first.getMonth() && start.getDay()===6) break;
+  }
+  return {year:y,month:m,weeks};
+}
+function getSelectedWeek(){const info=getMonthInfo(state.month); if(state.selectedWeek>info.weeks.length-1) state.selectedWeek=info.weeks.length-1; if(state.selectedWeek<0) state.selectedWeek=0; return info.weeks[state.selectedWeek];}
+function weekKey(start){return fmtDate(start);} 
+function isArabic(agent){return /Arabic/i.test(agent.lang);} 
+function getLeaveDates(agentId,start,end){
+  const out=[]; let d=new Date(start); const e=new Date(end); while(d<=e){out.push(fmtDate(d)); d.setDate(d.getDate()+1);} return out;
+}
+function getLeaveMap(){
+  const map={};
+  state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
+  return map;
+}
+function activeAgents(){return state.agents.filter(a=>a.active);}
+function getAgentById(id){return state.agents.find(a=>a.id===id);}
+function getAgentLink(agentId){return currentAgentLink();}
+function countWeeklyLeaves(agentId,week){
+  const leaveMap=getLeaveMap(); let c=0; for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); if(leaveMap[`${agentId}|${fmtDate(d)}`]) c++; } return c;
+}
+function autoSecondOffDate(agent,week){
+  if(countWeeklyLeaves(agent.id,week)>=2) return null; // leave already gives rest
+  let best=null;
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const dow=d.getDay();
+    if(dow===5) continue; // Friday fixed off handled separately
+    const score=(dow===agent.preferredOff?0:2)+(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    if(!best || score<best.score) best={date:fmtDate(d),score};
+  }
+  return best?best.date:null;
+}
+function getWeekPlan(week){
+  const leaveMap=getLeaveMap();
+  const overrides=state.weekOverrides[weekKey(week.start)]||{};
+  const plan={};
+  activeAgents().forEach(agent=>{
+    const secondOff=autoSecondOffDate(agent,week);
+    for(let i=0;i<7;i++){
+      const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const k=`${agent.id}|${ds}`;
+      let status='WORK'; let reason='';
+      if(d.getDay()===5){status='OFF'; reason='Friday fixed';}
+      else if(leaveMap[k]){status='LEAVE'; reason=leaveMap[k];}
+      else if(secondOff && ds===secondOff){status='OFF'; reason='Weekly off';}
+      if(overrides[k]){status=overrides[k].status; reason=overrides[k].reason||'Manual edit';}
+      plan[k]={status,reason};
+    }
+  });
+  return plan;
+}
+function getDaySummary(dateStr,weekPlan){
+  let available=0, arabic=0, shift1=0, shift2=0, off=0, leave=0, required=requiredByDay[new Date(dateStr).getDay()]||0;
+  activeAgents().forEach(a=>{
+    const p=weekPlan[`${a.id}|${dateStr}`];
+    if(!p) return;
+    if(p.status==='WORK'){
+      available++;
+      if(a.shift===1) shift1++; else shift2++;
+      if(isArabic(a)) arabic++;
+    }else if(p.status==='LEAVE'){
+      leave++;
+    }else if(p.status==='OFF'){
+      off++;
+    }
+  });
+  return {available,arabic,required,gap:available-required,shift1,shift2,off,leave};
+}
+function getBreaksForAgent(agent,workingAgentsOfShiftIndex){
+  const arr=breakTemplates[agent.shift]||breakTemplates[1]; return arr[workingAgentsOfShiftIndex%arr.length];
+}
+function parseRangeMinutes(r){
+  const [s,e]=r.split('-');
+  const [sh,sm]=s.split(':').map(Number);
+  const [eh,em]=e.split(':').map(Number);
+  return {start:sh*60+sm,end:eh*60+em};
+}
+function overlapsRange(a,b){ return a.start < b.end && b.start < a.end; }
+function getBreakOverride(agentId,dateStr){ return state.breakOverrides[`${agentId}|${dateStr}`] || null; }
+function countBreakConflicts(dateStr, weekPlan, proposal, exceptAgentId){
+  const ranges=[proposal[0],proposal[1],proposal[2]].map(parseRangeMinutes);
+  let count=0;
+  activeAgents().forEach(agent=>{
+    if(agent.id===exceptAgentId) return;
+    const p=weekPlan[`${agent.id}|${dateStr}`];
+    if(!p || p.status!=='WORK') return;
+    const current=getBreakOverride(agent.id,dateStr) || null;
+    const br=current ? [current[0],current[1],current[2]] : null;
+    const fallback = br || null;
+    const other=(fallback || []);
+    if(!other.length) return;
+    const oRanges=other.map(parseRangeMinutes);
+    ranges.forEach(r=>{ oRanges.forEach(orng=>{ if(overlapsRange(r,orng)) count++; }); });
+  });
+  return count;
+}
+function buildBreakPlanForDate(dateStr,weekPlan){
+  const result={};
+  const usage={};
+  function canUse(range){
+    for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; }
+    return true;
+  }
+  function reserve(range){
+    for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
+  }
+  [1,2].forEach(shift=>{
+    let idx=0;
+    activeAgents().filter(agent=>agent.shift===shift).forEach(agent=>{
+      const p=weekPlan[`${agent.id}|${dateStr}`];
+      if(!p || p.status!=='WORK') return;
+      const ov=getBreakOverride(agent.id,dateStr);
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserve(parseRangeMinutes(x))); return; }
+      const templates=breakTemplates[shift]||breakTemplates[1];
+      let selected=templates[idx % templates.length];
+      for(let step=0; step<templates.length; step++) {
+        const cand=templates[(idx+step) % templates.length];
+        if(cand.every(x=>canUse(parseRangeMinutes(x)))) { selected=cand; idx=(idx+step+1); break; }
+      }
+      result[agent.id]=selected;
+      selected.forEach(x=>reserve(parseRangeMinutes(x)));
+      idx++;
+    });
+  });
+  return result;
+}
+
+function publicState(){ return JSON.parse(JSON.stringify(state)); }
+async function fetchJson(url, opts={}){
+  const res=await fetch(url, opts);
+  let data=null;
+  try{ data=await res.json(); }catch(e){}
+  if(!res.ok){
+    const msg=(data && (data.message||data.error)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+function applyBinToUrl(binId){
+  const u=new URL(location.href);
+  if(binId) u.searchParams.set('bin',binId); else u.searchParams.delete('bin');
+  history.replaceState({},'',u.toString());
+}
+async function loadCloudState(binId){
+  const data=await fetchJson(`https://api.jsonbin.io/v3/b/${binId}/latest`, {headers:{'X-Bin-Meta':'false'}});
+  if(!data || !data.agents) throw new Error('Cloud record is empty or invalid.');
+  state=data;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  cloudStatus.connected=true;
+  cloudStatus.binId=binId;
+  applyBinToUrl(binId);
+}
+async function createCloudBin(masterKey){
+  const data=await fetchJson('https://api.jsonbin.io/v3/b',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'X-Master-Key': masterKey,
+      'X-Bin-Private':'false',
+      'X-Bin-Name':'Jaidah CX Roster'
+    },
+    body: JSON.stringify(publicState())
+  });
+  return data.metadata && data.metadata.id;
+}
+async function saveCloudNow(){
+  if(!cloudStatus.binId || !cloudStatus.masterKey) return;
+  cloudStatus.saving=true;
+  cloudStatus.lastError='';
+  try{
+    await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':cloudStatus.masterKey},
+      body: JSON.stringify(publicState())
+    });
+    cloudStatus.lastSaved=new Date().toLocaleTimeString();
+    cloudStatus.connected=true;
+  }catch(err){
+    cloudStatus.lastError=err.message || 'Cloud save failed.';
+  }finally{
+    cloudStatus.saving=false;
+    updateCloudBanner();
+  }
+}
+function scheduleCloudSave(){
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(saveCloudNow, 600);
+}
+function currentAgentLink(){
+  const u=new URL(location.href);
+  const out=new URL('index.html', u.href);
+  if(cloudStatus.binId) out.searchParams.set('bin', cloudStatus.binId);
+  return out.toString();
+}
+function currentAdminLink(){
+  const u=new URL(location.href);
+  if(cloudStatus.binId) u.searchParams.set('bin', cloudStatus.binId);
+  return u.toString();
+}
+function escapeHtml(str=''){ return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function updateCloudBanner(){
+  const el=document.getElementById('cloudStatusBox');
+  if(!el) return;
+  let html='';
+  if(cloudStatus.binId){
+    html += `<div class="ok">Cloud bin connected: <strong>${cloudStatus.binId}</strong>${cloudStatus.lastSaved?` · Last saved ${cloudStatus.lastSaved}`:''}${cloudStatus.saving?' · Saving...':''}</div>`;
+    html += `<div class="small" style="margin-bottom:8px">Admin link: ${escapeHtml(currentAdminLink())}</div>`;
+    html += `<div class="small">Agent link: ${escapeHtml(currentAgentLink())}</div>`;
+  }else{
+    html += `<div class="warn">Cloud is not connected yet. Paste your JSONBin Master Key below and click Connect cloud.</div>`;
+  }
+  if(cloudStatus.lastError) html += `<div class="bad" style="margin-top:8px">${escapeHtml(cloudStatus.lastError)}</div>`;
+  el.innerHTML=html;
+}
+
+function pageNav(){
+  if(agentView){
+    document.querySelectorAll('.nb').forEach(b=>b.style.display='none');
+    const a=getAgentById(agentViewId);
+    document.getElementById('pageTitle').textContent=a?`${a.name} · My Schedule`:'Agent View';
+    return;
+  }
+  document.querySelectorAll('.nb').forEach(b=>{b.classList.toggle('on',b.dataset.page===currentPage);});
+  document.getElementById('pageTitle').textContent=pages[currentPage];
+}
+function playWeekTransition(dir){
+  const app=document.getElementById('app');
+  if(!app) return;
+  app.classList.remove('week-next','week-prev','week-fade');
+  void app.offsetWidth;
+  app.classList.add(dir==='prev' ? 'week-prev' : 'week-next');
+  app.classList.add('week-fade');
+  setTimeout(()=>app.classList.remove('week-next','week-prev','week-fade'), 360);
+}
+function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
+function syncHeader(){
+  const mi=getMonthInfo(state.month); const monthPicker=document.getElementById('monthPicker'); const weekPicker=document.getElementById('weekPicker'); monthPicker.value=state.month;
+  weekPicker.innerHTML=mi.weeks.map((w,i)=>`<option value="${i}">Week ${i+1} · ${w.label}</option>`).join(''); weekPicker.value=String(state.selectedWeek);
+  if(agentView){
+    document.getElementById('prevWeek').style.display='';
+    document.getElementById('nextWeek').style.display='';
+  }
+}
+function renderDashboard(week,weekPlan){
+  let totalAvailable=0,totalRequired=0,underDays=0; const dayCards=[];
+  const today=new Date();
+  const weekEnd=new Date(week.start); weekEnd.setDate(weekEnd.getDate()+6);
+  const focusDate=(today>=week.start && today<=weekEnd)? today : new Date(week.start);
+  const focusSummary=getDaySummary(fmtDate(focusDate),weekPlan);
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); totalAvailable+=s.available; totalRequired+=s.required; if(s.gap<0) underDays++;
+    dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2} · Off ${s.off} · Leave ${s.leave}</div></div>`);
+  }
+  const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length;
+  return `
+    <div class="note">This version is simplified around your real workflow: select the week, let the app generate the roster automatically, then only edit exceptions or add leave.</div>
+    <div class="grid4">
+      <div class="met"><div class="l">Active agents</div><div class="v">${activeAgents().length}</div><div class="s">Friday fixed off for all</div></div>
+      <div class="met"><div class="l">Total weekly coverage</div><div class="v">${totalAvailable}</div><div class="s">Required ${totalRequired}</div></div>
+      <div class="met"><div class="l">Under-covered days</div><div class="v" style="color:${underDays?'#991b1b':'#166534'}">${underDays}</div><div class="s">This selected week</div></div>
+      <div class="met"><div class="l">Leave records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
+    </div>
+    <div class="card"><div class="ch">Daily overview · ${focusDate.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}</div><div class="grid4">
+      <div class="met"><div class="l">Shift 1</div><div class="v">${focusSummary.shift1}</div><div class="s">08:00 - 17:30</div></div>
+      <div class="met"><div class="l">Shift 2</div><div class="v">${focusSummary.shift2}</div><div class="s">09:30 - 19:00</div></div>
+      <div class="met"><div class="l">OFF agents</div><div class="v">${focusSummary.off}</div><div class="s">Includes Friday fixed + weekly off</div></div>
+      <div class="met"><div class="l">On leave</div><div class="v">${focusSummary.leave}</div><div class="s">Planned leave on this day</div></div>
+    </div></div>
+    <div class="card"><div class="ch">Week coverage snapshot · ${week.label}</div><div class="grid4">${dayCards.join('')}</div></div>
+    ${renderWeeklyTable(week,weekPlan,true)}
+  `;
+}
+function renderWeekly(week,weekPlan){
+  let alerts='';
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const s=getDaySummary(fmtDate(d),weekPlan); if(s.gap<0){alerts+=`<div class="warn">${d.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}: ${Math.abs(s.gap)} below required staffing.</div>`;}
+  }
+  if(!alerts) alerts='<div class="ok">No staffing risk on the selected week based on the current setup.</div>';
+  return `${alerts}${renderWeeklyTable(week,weekPlan,false)}`;
+}
+function renderWeeklyTable(week,weekPlan,compact){
+  const dayHeaders=[]; 
+  const breakPlans={};
+  for(let i=0;i<7;i++){ 
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); 
+    dayHeaders.push(`<div class="wh">${d.toLocaleDateString('en-GB',{weekday:'short'})}<br>${humanDate(d)}<br><span class="small">Avail ${s.available} · Req ${s.required}</span></div>`);
+    breakPlans[ds]=buildBreakPlanForDate(ds,weekPlan);
+  }
+  let rows='';
+  activeAgents().forEach(agent=>{
+    let cells='';
+    for(let i=0;i<7;i++){
+      const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const p=weekPlan[`${agent.id}|${ds}`];
+      let body='';
+      if(p.status==='WORK'){
+        const br=breakPlans[ds][agent.id] || getBreaksForAgent(agent,0);
+        body=`<div class="st">WORK</div><div class="tm">${shiftLabel[agent.shift]}</div><div class="br">B1 ${br[0]}<br>Lunch ${br[1]}<br>B2 ${br[2]}</div>`;
+      }else if(p.status==='OFF'){
+        body=`<div class="st">OFF</div><div class="tm">${p.reason}</div>`;
+      }else{
+        body=`<div class="st">LEAVE</div><div class="tm">${p.reason||'Leave'}</div>`;
+      }
+      const bg=p.status==='WORK'?'var(--work)':p.status==='LEAVE'?'var(--leave)':(d.getDay()===5?'var(--fixed)':'var(--off)');
+      cells+=`<div class="wc" style="background:${bg}">${body}${compact?'':`<div style="margin-top:8px"><select data-agent="${agent.id}" data-date="${ds}" class="quickStatus"><option value="">Edit</option><option value="WORK">Working</option><option value="OFF">OFF</option><option value="LEAVE">Leave</option><option value="CLEAR">Back to auto</option></select></div>`}</div>`;
+    }
+    rows+=`<div class="wagent"><div class="av">${avatar(agent.name)}</div><div><div style="font-weight:700">${agent.name}</div><div class="small">${agent.lang} · ${agent.shift===1?'Shift 1':'Shift 2'}</div></div></div>${cells}`;
+  });
+  return `<div class="card"><div class="ch">Auto-generated weekly roster · ${week.label}</div><div class="note">The app generates the week automatically. Each agent gets Friday OFF plus one extra weekly OFF unless leave already reduces the week. You only edit exceptions when needed.</div><div style="overflow:auto"><div class="weekgrid">${['<div></div>',...dayHeaders].join('')}${rows}</div></div></div>`;
+}
+function renderLeave(week,weekPlan){
+  const rows=state.leaves.map((l,i)=>{ const agent=state.agents.find(a=>a.id===l.agentId); return `<tr><td>${agent?agent.name:'Unknown'}</td><td>${l.start}</td><td>${l.end}</td><td><span class="pill p-leave">${l.type}</span></td><td><button class="btn btnr removeLeave" data-index="${i}">Remove</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="small">No leave added yet.</td></tr>';
+  return `
+    <div class="card">
+      <div class="ch">Add leave</div>
+      <div class="note">Only add leave here. The app will rebuild the weekly roster automatically around it.</div>
+      <div class="leave-grid">
+        <div class="field tight"><label>Agent</label><select id="leaveAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field tight"><label>Start</label><input type="date" id="leaveStart"></div>
+        <div class="field tight"><label>End</label><input type="date" id="leaveEnd"></div>
+        <div class="field tight"><label>Type</label><select id="leaveType"><option>Paid Leave</option><option>Unpaid Leave</option><option>Sick Leave</option><option>Training</option><option>Casual Leave</option></select></div>
+        <button class="btn btnp" id="addLeave">Add leave</button>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Saved leave</div><table class="tbl"><thead><tr><th>Agent</th><th>Start</th><th>End</th><th>Type</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${renderWeeklyTable(week,weekPlan,true)}
+  `;
+}
+
+function renderBreaks(week,weekPlan){
+  const rows=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
+    const plans=buildBreakPlanForDate(ds,weekPlan);
+    activeAgents().forEach(agent=>{
+      const p=weekPlan[`${agent.id}|${ds}`];
+      if(!p || p.status!=='WORK') return;
+      const br=plans[agent.id] || getBreaksForAgent(agent,0);
+      const custom=!!state.breakOverrides[`${agent.id}|${ds}`];
+      rows.push(`<tr>
+        <td>${agent.name}</td>
+        <td>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</td>
+        <td><span class="pill ${agent.shift===1?'p-sh1':'p-sh2'}">${agent.shift===1?'Shift 1':'Shift 2'}</span></td>
+        <td>${br[0]}</td>
+        <td>${br[1]}</td>
+        <td>${br[2]}</td>
+        <td>${custom?'<span class="pill p-leave">Edited</span>':'<span class="pill p-work">Auto</span>'}</td>
+        <td><button class="btn fillBreak" data-agent="${agent.id}" data-date="${ds}" data-b1="${br[0]}" data-lunch="${br[1]}" data-b2="${br[2]}">Edit</button>${custom?` <button class="btn btnr removeBreak" data-agent="${agent.id}" data-date="${ds}">Clear</button>`:''}</td>
+      </tr>`);
+    });
+  }
+  const rowsHtml=rows.join('') || '<tr><td colspan="8" class="small">No working agents in this week.</td></tr>';
+  const allB1=[...new Set(breakTemplates[1].map(x=>x[0]).concat(breakTemplates[2].map(x=>x[0])))];
+  const allLunch=[...new Set(breakTemplates[1].map(x=>x[1]).concat(breakTemplates[2].map(x=>x[1])))];
+  const allB2=[...new Set(breakTemplates[1].map(x=>x[2]).concat(breakTemplates[2].map(x=>x[2])))];
+  return `
+    <div class="card">
+      <div class="ch">Break control · ${week.label}</div>
+      <div class="note">Edit breaks here only. Any change saves here and reflects automatically in the weekly planner and dashboard. The app blocks any edit that creates more than 2 agents out at the same time.</div>
+      <div class="rowflex">
+        <div class="field"><label>Agent</label><select id="brAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Date</label><input type="date" id="brDate"></div>
+        <div class="field"><label>Break 1</label><select id="br1">${allB1.map(x=>`<option>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Lunch</label><select id="brLunch">${allLunch.map(x=>`<option>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Break 2</label><select id="br2">${allB2.map(x=>`<option>${x}</option>`).join('')}</select></div>
+        <button class="btn btnp" id="saveBreak">Save break edit</button>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Working agents and breaks · selected week</div><table class="tbl"><thead><tr><th>Agent</th><th>Date</th><th>Shift</th><th>Break 1</th><th>Lunch</th><th>Break 2</th><th>Mode</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    ${renderWeeklyTable(week,weekPlan,true)}
+  `;
+}
+
+
+function renderAgentView(week,weekPlan){
+  const agent=getAgentById(agentViewId);
+  if(!agent) return `<div class="card"><div class="bad">Agent link is not valid.</div></div>`;
+  let work=0, off=0, leave=0;
+  const cards=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
+    const plan=weekPlan[`${agent.id}|${ds}`];
+    const breaks=plan && plan.status==='WORK' ? (buildBreakPlanForDate(ds,weekPlan)[agent.id]||[]) : [];
+    if(plan?.status==='WORK') work++; else if(plan?.status==='OFF') off++; else if(plan?.status==='LEAVE') leave++;
+    cards.push(`<div class="daycard"><h4>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</h4>
+      <div class="kv"><div>Status: <strong>${plan?plan.status:'-'}</strong></div>
+      <div>${plan?.reason||''}</div>
+      ${plan?.status==='WORK'?`<div>Shift: ${agent.shift===1?'Shift 1 · 08:00-17:30':'Shift 2 · 09:30-19:00'}</div><div>Break 1: ${breaks[0]||'-'}</div><div>Lunch: ${breaks[1]||'-'}</div><div>Break 2: ${breaks[2]||'-'}</div>`:''}
+      </div></div>`);
+  }
+  return `<div class="grid4">
+    <div class="met"><div class="l">Working days</div><div class="v">${work}</div><div class="s">selected week</div></div>
+    <div class="met"><div class="l">OFF days</div><div class="v">${off}</div><div class="s">includes Friday</div></div>
+    <div class="met"><div class="l">Leave days</div><div class="v">${leave}</div><div class="s">selected week</div></div>
+    <div class="met"><div class="l">Shift</div><div class="v" style="font-size:18px">${agent.shift===1?'Shift 1':'Shift 2'}</div><div class="s">${shiftLabel[agent.shift]}</div></div>
+  </div>
+  <div class="card"><div class="ch">${agent.name} · weekly schedule</div><div class="note">This view is for the individual agent. Any roster, leave, or break update from the planner reflects here automatically.</div><div class="daycards">${cards.join('')}</div></div>`;
+}
+
+function renderTeam(){
+  const rows=state.agents.map(a=>`<tr><td>${a.name}</td><td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">${a.shift===1?'Shift 1':'Shift 2'}</span></td><td>${a.lang}</td><td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.preferredOff]}</td><td>${a.active?'<span class="pill p-work">Active</span>':'<span class="pill p-off">Inactive</span>'}</td></tr>`).join('');
+  const sharedLink=currentAgentLink();
+  return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. The app auto-generates the second off for each week and you can still edit exceptions.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred off</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
+}
+function renderAdmin(){
+  const rows=state.agents.map(a=>`<tr>
+    <td><input value="${a.name}" data-id="${a.id}" data-field="name" class="agentEdit"></td>
+    <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
+    <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
+    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">
+      <option value="0" ${a.preferredOff===0?'selected':''}>Sunday</option><option value="1" ${a.preferredOff===1?'selected':''}>Monday</option><option value="2" ${a.preferredOff===2?'selected':''}>Tuesday</option><option value="3" ${a.preferredOff===3?'selected':''}>Wednesday</option><option value="4" ${a.preferredOff===4?'selected':''}>Thursday</option><option value="6" ${a.preferredOff===6?'selected':''}>Saturday</option></select></td>
+    <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
+  </tr>`).join('');
+  return `
+    <div class="card"><div class="ch">Team master data</div><div class="note">Use this only for the stable setup. Day-to-day planning should happen through the weekly planner, leave control, and break control.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn" id="autoShiftBalance">Auto-assign shifts (random + language balance)</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card"><div class="ch">Weekly edit for selected week</div>
+      <div class="rowflex">
+        <div class="field"><label>Agent</label><select id="ovAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Date</label><input type="date" id="ovDate"></div>
+        <div class="field"><label>Status</label><select id="ovStatus"><option value="WORK">Working</option><option value="OFF">OFF</option><option value="LEAVE">Leave</option><option value="CLEAR">Back to auto</option></select></div>
+        <button class="btn btnp" id="saveOverride">Save weekly edit</button>
+      </div>
+      <div class="small" style="margin-top:8px">Use this only when the auto-generated roster needs adjustment.</div>
+    </div>
+    <div class="card"><div class="ch">Cloud sync setup</div>
+      <div class="note">Paste your JSONBin Master Key once. The app will create a public cloud bin, save all roster changes there, and generate one shared agent link.</div>
+      <div class="rowflex">
+        <div class="field" style="min-width:320px;flex:1"><label>JSONBin Master Key</label><input type="password" id="cloudMasterKey" placeholder="$2b$..."></div>
+        <button class="btn btnp" id="connectCloud">Connect cloud</button>
+        <button class="btn" id="loadCloud">Load cloud</button>
+      </div>
+      <div id="cloudStatusBox" style="margin-top:12px"></div>
+    </div>
+    <div class="card"><div class="ch">Data control</div><div class="rowflex"><button class="btn" id="exportJson">Export data</button><button class="btn btnr" id="resetAll">Reset all</button></div><div id="exportBox" style="margin-top:12px"></div></div>
+  `;
+}
+function overlapsWeek(l,week){return new Date(l.end)>=week.start && new Date(l.start)<=week.end;}
+function setOverride(agentId,date,status){
+  const wk=getSelectedWeek(); const key=weekKey(wk.start); state.weekOverrides[key] ||= {}; const k=`${agentId}|${date}`;
+  if(status==='CLEAR') delete state.weekOverrides[key][k]; else state.weekOverrides[key][k]={status,reason:'Manual edit'};
+}
+function bindPageActions(){
+  document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); render();});
+  document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); render();});
+  const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); render(); };
+  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
+  const autoShiftBalance=document.getElementById('autoShiftBalance');
+  if(autoShiftBalance) autoShiftBalance.onclick=()=>{
+    const result=autoAssignBalancedShifts();
+    render();
+    alert(
+      `Auto-assigned ${result.updated} active agents.\n`+
+      `Shift 1: ${result.counters[1].total} total (${result.counters[1].arabic} Arabic-capable, ${result.counters[1].english} English-only)\n`+
+      `Shift 2: ${result.counters[2].total} total (${result.counters[2].arabic} Arabic-capable, ${result.counters[2].english} English-only)`
+    );
+  };
+  const saveOverride=document.getElementById('saveOverride'); if(saveOverride) saveOverride.onclick=()=>{const agentId=Number(document.getElementById('ovAgent').value); const date=document.getElementById('ovDate').value; const status=document.getElementById('ovStatus').value; if(!date) return alert('Choose date first.'); setOverride(agentId,date,status); render();};
+  const saveBreak=document.getElementById('saveBreak'); if(saveBreak) saveBreak.onclick=()=>{
+    const agentId=Number(document.getElementById('brAgent').value);
+    const date=document.getElementById('brDate').value;
+    const proposal=[document.getElementById('br1').value,document.getElementById('brLunch').value,document.getElementById('br2').value];
+    if(!date) return alert('Choose date first.');
+    const weekPlan=getWeekPlan(getSelectedWeek());
+    const dayPlan=weekPlan[`${agentId}|${date}`];
+    if(!dayPlan || dayPlan.status!=='WORK') return alert('This agent is not working on that date.');
+    const plans=buildBreakPlanForDate(date,weekPlan);
+    const slots=[];
+    Object.entries(plans).forEach(([id,br])=>{ if(Number(id)!==agentId) slots.push(...br); });
+    const usage={};
+    slots.forEach(r=>{ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ usage[t]=(usage[t]||0)+1; } });
+    for(const r of proposal){ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ if((usage[t]||0)>=2) return alert('This break time creates more than 2 agents out at the same time. Please choose another slot.'); } }
+    state.breakOverrides[`${agentId}|${date}`]=proposal;
+    render();
+  };
+  document.querySelectorAll('.fillBreak').forEach(b=>b.onclick=()=>{document.getElementById('brAgent').value=b.dataset.agent; document.getElementById('brDate').value=b.dataset.date; document.getElementById('br1').value=b.dataset.b1; document.getElementById('brLunch').value=b.dataset.lunch; document.getElementById('br2').value=b.dataset.b2; if(currentPage==='breaks') window.scrollTo({top:0,behavior:'smooth'});});
+  document.querySelectorAll('.removeBreak').forEach(b=>b.onclick=()=>{delete state.breakOverrides[`${b.dataset.agent}|${b.dataset.date}`]; render();});
+
+  const cloudInput=document.getElementById('cloudMasterKey');
+  if(cloudInput) cloudInput.value=cloudStatus.masterKey || '';
+  const connectCloud=document.getElementById('connectCloud');
+  if(connectCloud) connectCloud.onclick=async ()=>{
+    const key=(document.getElementById('cloudMasterKey').value || '').trim();
+    if(!key) return alert('Paste your JSONBin Master Key first.');
+    cloudStatus.masterKey=key;
+    localStorage.setItem(CLOUD_MASTER_KEY, key);
+    try{
+      if(!cloudStatus.binId){
+        const newBinId=await createCloudBin(key);
+        cloudStatus.binId=newBinId;
+        applyBinToUrl(newBinId);
+      }
+      await saveCloudNow();
+      render();
+    }catch(err){
+      cloudStatus.lastError=err.message || 'Could not connect cloud.';
+      updateCloudBanner();
+      alert(cloudStatus.lastError);
+    }
+  };
+  const loadCloud=document.getElementById('loadCloud');
+  if(loadCloud) loadCloud.onclick=async ()=>{
+    if(!cloudStatus.binId) return alert('Open the admin link that contains ?bin=... or connect cloud first.');
+    try{
+      await loadCloudState(cloudStatus.binId);
+      render();
+    }catch(err){
+      cloudStatus.lastError=err.message || 'Could not load cloud data.';
+      updateCloudBanner();
+      alert(cloudStatus.lastError);
+    }
+  };
+  const exportBtn=document.getElementById('exportJson'); if(exportBtn) exportBtn.onclick=()=>{document.getElementById('exportBox').innerHTML=`<textarea class="exporttxt">${JSON.stringify(state,null,2)}</textarea>`;};
+  const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
+  const themeToggle=document.getElementById('themeToggle'); if(themeToggle) themeToggle.onclick=()=>toggleTheme();
+}
+
+document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page; render();});
+document.getElementById('monthPicker').onchange=e=>{state.month=e.target.value; state.selectedWeek=0; render('next');};
+document.getElementById('weekPicker').onchange=e=>{const prev=state.selectedWeek; state.selectedWeek=Number(e.target.value); render(state.selectedWeek<prev?'prev':'next');};
+document.getElementById('prevWeek').onclick=()=>{state.selectedWeek=Math.max(0,state.selectedWeek-1); render('prev');};
+document.getElementById('nextWeek').onclick=()=>{const max=getMonthInfo(state.month).weeks.length-1; state.selectedWeek=Math.min(max,state.selectedWeek+1); render('next');};
+(async function initCloud(){
+  if(BIN_PARAM){
+    try{ await loadCloudState(BIN_PARAM); }catch(err){ cloudStatus.lastError=err.message || 'Could not load cloud data.'; }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
