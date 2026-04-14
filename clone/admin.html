@@ -124,16 +124,16 @@ body.light-theme .heatcell{color:#0f172a}
 .legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
 .legend-bar{height:10px;width:140px;border-radius:999px;background:linear-gradient(90deg,rgba(56,189,248,.18),rgba(59,130,246,.45),rgba(147,51,234,.75))}
 .agentheat-wrap{overflow:auto;padding-bottom:4px}
-.agentheatgrid{display:grid;grid-template-columns:200px repeat(48,minmax(54px,54px)) 110px;gap:4px;min-width:3000px}
-.agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}
-.agenthead,.agentname{background:var(--card);font-weight:700}
-.agenthead small{display:block;color:var(--muted);font-weight:400;font-size:9px}
-.agentslot{font-size:9px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.15;word-break:break-word;min-height:42px;display:flex;align-items:center;justify-content:center}
-.agentslot.work{background:rgba(34,197,94,.18)}
-.agentslot.break{background:rgba(56,189,248,.4)}
-.agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
-.agentslot.off{background:rgba(148,163,184,.08);color:var(--muted)}
-.agenteditcell{background:var(--card)}
+.agentheatgrid{display:grid;grid-template-columns:200px repeat(48,minmax(60px,60px)) 110px;gap:4px;min-width:3300px}
+.agentheatgrid .agenthead,.agentheatgrid .agentname,.agentheatgrid .agentslot,.agentheatgrid .agenteditcell{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}
+.agentheatgrid .agenthead,.agentheatgrid .agentname{background:var(--card);font-weight:700}
+.agentheatgrid .agenthead small{display:block;color:var(--muted);font-weight:400;font-size:9px}
+.agentheatgrid .agentslot{font-size:9px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.15;word-break:break-word;min-height:42px;display:flex;align-items:center;justify-content:center}
+.agentheatgrid .agentslot.work{background:rgba(34,197,94,.18)}
+.agentheatgrid .agentslot.break{background:rgba(56,189,248,.4)}
+.agentheatgrid .agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
+.agentheatgrid .agentslot.off{background:rgba(148,163,184,.08);color:var(--muted)}
+.agentheatgrid .agenteditcell{background:var(--card)}
 
 </style>
 </head>
