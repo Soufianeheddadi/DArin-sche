@@ -567,7 +567,10 @@ function buildBreakPlanForDate(dateStr,weekPlan){
 function normalKey(s=''){ return String(s).toLowerCase().replace(/[^a-z0-9]/g,''); }
 function pickRowValue(row, names){
   const wanted=names.map(normalKey);
-  for(const [k,v] of Object.entries(row||{})){ if(wanted.includes(normalKey(k))) return v; }
+  for(const [k,v] of Object.entries(row||{})){
+    const nk=normalKey(k);
+    if(wanted.includes(nk) || wanted.some(w=>nk.includes(w) || w.includes(nk))) return v;
+  }
   return '';
 }
 function parseUploadMonthValue(value){
@@ -600,23 +603,39 @@ function parseUploadHourValue(value){
   const match=text.match(/(\d{1,2})/);
   return match ? `${pad(Number(match[1]))}:00` : null;
 }
+function parseUploadDateHourValue(value){
+  const text=String(value||'').trim();
+  if(!text) return null;
+  const normalized=text.replace(/\./g,'-').replace(/\//g,'-');
+  const match=normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):?(\d{2})?/);
+  if(match){
+    return {year:Number(match[1]),month:Number(match[2]),day:Number(match[3]),hour:`${pad(Number(match[4]))}:00`};
+  }
+  const dt=new Date(normalized);
+  if(!Number.isNaN(dt.getTime())){
+    return {year:dt.getFullYear(),month:dt.getMonth()+1,day:dt.getDate(),hour:`${pad(dt.getHours())}:00`};
+  }
+  return null;
+}
 function importBreakDemandRows(rows, fileName){
   ensureBreakPlannerSettings(state);
-  const year=Number((state.month||todayMonth()).split('-')[0]);
+  const defaultYear=Number((state.month||todayMonth()).split('-')[0]);
   const demand={};
   let imported=0;
   rows.forEach(row=>{
-    const month=parseUploadMonthValue(pickRowValue(row,['month']));
-    const day=parseUploadDayValue(pickRowValue(row,['day','date']));
-    const hour=parseUploadHourValue(pickRowValue(row,['hour','time']));
-    const interactions=Number(pickRowValue(row,['number of interaction','number of interactions','interaction','interactions','volume','count']));
+    const combined=parseUploadDateHourValue(pickRowValue(row,['dategroupfullhour','fullhour','datetime','date time']));
+    const month=combined?.month || parseUploadMonthValue(pickRowValue(row,['month']));
+    const day=combined?.day || parseUploadDayValue(pickRowValue(row,['day','date']));
+    const hour=combined?.hour || parseUploadHourValue(pickRowValue(row,['hour','time']));
+    const year=combined?.year || defaultYear;
+    const interactions=Number(pickRowValue(row,['countoffered','count - offered','number of interaction','number of interactions','interaction','interactions','volume','count']));
     if(!month || !day || !hour || Number.isNaN(interactions)) return;
     const dateStr=`${year}-${pad(month)}-${pad(day)}`;
     demand[dateStr] ||= {};
     demand[dateStr][hour]=(demand[dateStr][hour]||0)+interactions;
     imported++;
   });
-  if(!imported) throw new Error('Use Excel columns named Month, Day, Hour and Number of Interaction.');
+  if(!imported) throw new Error('Use Interactions.csv headers like Date Group - Full Hour and Count - Offered, or Month, Day, Hour and Number of Interaction.');
   state.breakDemand=demand;
   state.breakDemandMeta={source:fileName, rows:imported, days:Object.keys(demand).length, uploadedAt:new Date().toLocaleString()};
   state.breakOverrides={};
@@ -879,7 +898,7 @@ function renderBreaks(week,weekPlan){
   return `
     <div class="card">
       <div class="ch">Break control · ${week.label}</div>
-      <div class="note">Upload your hourly interaction file and the planner will distribute breaks for each working day using this fixed order: short break 15 min, lunch 30 min, then short break 15 min.</div>
+      <div class="note">Upload your hourly interaction file and the planner will distribute breaks for each working day using this fixed order: short break 15 min, lunch 30 min, then short break 15 min. Your Interactions.csv format with Date Group - Full Hour and Count - Offered is supported.</div>
       ${uploadState}
       <div class="rowflex">
         <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
