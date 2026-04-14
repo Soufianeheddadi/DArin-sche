@@ -127,7 +127,7 @@ body.light-theme .heatcell{color:#0f172a}
 .agentheatgrid{display:grid;grid-template-columns:180px repeat(16,minmax(44px,1fr)) 90px;gap:4px;min-width:1080px}
 .agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}
 .agenthead,.agentname{background:var(--card);font-weight:700}
-.agentslot{font-size:10px;font-weight:700;background:rgba(148,163,184,.08)}
+.agentslot{font-size:9px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.2;word-break:break-word}
 .agentslot.work{background:rgba(34,197,94,.18)}
 .agentslot.break{background:rgba(56,189,248,.4)}
 .agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
@@ -969,10 +969,10 @@ function renderBreaks(week,weekPlan){
       const minute=parseClockMinutes(hour);
       const slot={start:minute,end:minute+60};
       let cls='off', label='';
-      if(overlapsRange(slot,ranges.shift)){ cls='work'; label='W'; }
-      if(overlapsRange(slot,ranges.b1)){ cls='break'; label='B1'; }
-      if(overlapsRange(slot,ranges.lunch)){ cls='lunch'; label='L'; }
-      if(overlapsRange(slot,ranges.b2)){ cls='break'; label='B2'; }
+      if(overlapsRange(slot,ranges.shift)){ cls='work'; label='Working'; }
+      if(overlapsRange(slot,ranges.b1)){ cls='break'; label=breaks[0]; }
+      if(overlapsRange(slot,ranges.lunch)){ cls='lunch'; label=breaks[1]; }
+      if(overlapsRange(slot,ranges.b2)){ cls='break'; label=breaks[2]; }
       agentGrid.push(`<div class="agentslot ${cls}">${label}</div>`);
     });
     agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
@@ -983,7 +983,7 @@ function renderBreaks(week,weekPlan){
   return `
     <div class="card">
       <div class="ch">Break control · ${week.label}</div>
-      <div class="note">This page shows the interaction heat map and, below it, the day-by-day agent view. Breaks always follow this order: 15 minutes, 30 minutes lunch, 15 minutes.</div>
+      <div class="note">This page shows the interaction heat map and, below it, the day-by-day agent view with the real break times. The interaction file is analyzed each time to place breaks away from peak periods.</div>
       ${uploadState}
       <div class="rowflex">
         <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
