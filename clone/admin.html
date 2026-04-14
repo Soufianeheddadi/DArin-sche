@@ -22,8 +22,9 @@ button,input,select,textarea{font:inherit}
 .top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
 .controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;width:100%;justify-content:flex-end}
 .theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px);margin-left:auto}
-.theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#60a5fa,#22d3ee);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
-.theme-toggle.light .thumb{transform:translateX(42px);background:linear-gradient(120deg,#facc15,#fb923c)}
+.theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#facc15,#fb923c);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
+.theme-toggle.light .thumb{transform:translateX(0);background:linear-gradient(120deg,#facc15,#fb923c)}
+.theme-toggle.dark .thumb{transform:translateX(42px);background:linear-gradient(120deg,#60a5fa,#22d3ee)}
 .theme-toggle button{position:relative;z-index:1;width:40px;height:30px;border:none;background:transparent;color:#cbd5e1;border-radius:999px;cursor:pointer;font-size:15px;transition:color .2s ease,transform .2s ease}
 .theme-toggle button:hover{transform:scale(1.05)}
 .theme-toggle button.active{color:#fff}
@@ -143,8 +144,8 @@ body.agent-mode .top h1{margin-bottom:0}
         <button class="btn" id="nextWeek">Week →</button>
         <div class="theme-toggle" id="themeToggle">
           <div class="thumb"></div>
-          <button type="button" id="themeMoon" aria-label="Dark mode"><span class="moon-icon">☾</span></button>
           <button type="button" id="themeSun" aria-label="Light mode">☀</button>
+          <button type="button" id="themeMoon" aria-label="Dark mode"><span class="moon-icon">☾</span></button>
         </div>
       </div>
     </div>
@@ -197,7 +198,10 @@ function applyTheme(theme){
   const wrap=document.getElementById('themeToggle');
   const moon=document.getElementById('themeMoon');
   const sun=document.getElementById('themeSun');
-  if(wrap) wrap.classList.toggle('light', theme==='light');
+  if(wrap){
+    wrap.classList.toggle('light', theme==='light');
+    wrap.classList.toggle('dark', theme==='dark');
+  }
   if(moon) moon.classList.toggle('active', theme==='dark');
   if(sun) sun.classList.toggle('active', theme==='light');
 }
