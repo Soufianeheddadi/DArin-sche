@@ -406,6 +406,8 @@ window.addEventListener('storage', function(e){
   if(e.key===STORAGE_KEY) refreshSharedState(!!curAgent);
   if(e.key===THEME_KEY) applyTheme(currentTheme());
 });
+window.addEventListener('focus', function(){ refreshSharedState(!!curAgent); });
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshSharedState(!!curAgent); });
 
 function init(){
   applyTheme(currentTheme());

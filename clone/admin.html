@@ -158,6 +158,8 @@ const CLOUD_MASTER_KEY='jaidah_cloud_master_key_v26';
 const THEME_KEY='jaidah_theme_v1';
 const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
 let syncTimer=null;
+let cloudPullBusy=false;
+let suppressNextSave=false;
 let cloudStatus={binId: BIN_PARAM || '', masterKey: localStorage.getItem(CLOUD_MASTER_KEY)||'', saving:false, lastSaved:'', lastError:'', connected:false};
 const defaultAgents=[
 {id:1,name:'Jofferson Nucup',lang:'English',shift:1,active:true,preferredOff:2},
@@ -233,6 +235,10 @@ function loadState(){
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  if(suppressNextSave){
+    suppressNextSave=false;
+    return;
+  }
   if(cloudStatus.binId && cloudStatus.masterKey) scheduleCloudSave();
 }
 function todayMonth(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
@@ -426,6 +432,31 @@ async function loadCloudState(binId){
   cloudStatus.connected=true;
   cloudStatus.binId=binId;
   applyBinToUrl(binId);
+}
+async function pullCloudStateIfChanged(){
+  if(!cloudStatus.binId || cloudPullBusy || cloudStatus.saving) return;
+  const ae=document.activeElement;
+  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+  cloudPullBusy=true;
+  try{
+    const data=await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}/latest`, {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
+    if(data && data.agents){
+      const localRaw=JSON.stringify(state);
+      const remoteRaw=JSON.stringify(data);
+      if(remoteRaw!==localRaw){
+        state=data;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        suppressNextSave=true;
+        render();
+      }
+      cloudStatus.connected=true;
+      updateCloudBanner();
+    }
+  }catch(err){
+    cloudStatus.lastError='';
+  }finally{
+    cloudPullBusy=false;
+  }
 }
 async function createCloudBin(masterKey){
   const data=await fetchJson('https://api.jsonbin.io/v3/b',{
@@ -795,6 +826,9 @@ window.addEventListener('storage', e=>{
   if(e.key===STORAGE_KEY){ state=loadState(); render(); }
   if(e.key===THEME_KEY){ applyTheme(currentTheme()); }
 });
+window.addEventListener('focus', ()=>{ pullCloudStateIfChanged(); });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pullCloudStateIfChanged(); });
+setInterval(()=>{ pullCloudStateIfChanged(); }, 8000);
 
 document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page; render();});
 document.getElementById('monthPicker').onchange=e=>{state.month=e.target.value; state.selectedWeek=0; render('next');};
