@@ -123,6 +123,16 @@ body.light-theme .heatcell{color:#0f172a}
 .heatcell.empty{background:rgba(148,163,184,.12);color:var(--muted)}
 .legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
 .legend-bar{height:10px;width:140px;border-radius:999px;background:linear-gradient(90deg,rgba(56,189,248,.18),rgba(59,130,246,.45),rgba(147,51,234,.75))}
+.agentheat-wrap{overflow:auto}
+.agentheatgrid{display:grid;grid-template-columns:180px repeat(16,minmax(44px,1fr)) 90px;gap:4px;min-width:1080px}
+.agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}
+.agenthead,.agentname{background:var(--card);font-weight:700}
+.agentslot{font-size:10px;font-weight:700;background:rgba(148,163,184,.08)}
+.agentslot.work{background:rgba(34,197,94,.18)}
+.agentslot.break{background:rgba(56,189,248,.4)}
+.agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
+.agentslot.off{background:rgba(148,163,184,.08);color:var(--muted)}
+.agenteditcell{background:var(--card)}
 
 </style>
 </head>
@@ -270,6 +280,7 @@ function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').to
 function ensureBreakPlannerSettings(obj){
   obj.breakDemand ||= {};
   obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:''};
+  obj.breakFocusDate ||= '';
   return obj;
 }
 function ensureRamadanSettings(obj){
@@ -512,6 +523,35 @@ function reserveUsage(usage, rangeTxt){
   const range=parseRangeMinutes(rangeTxt);
   for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
 }
+function syncBreakFocusDate(week){
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i);
+    dates.push(fmtDate(d));
+  }
+  const today=fmtDate(new Date());
+  if(!state.breakFocusDate || !dates.includes(state.breakFocusDate)){
+    state.breakFocusDate=dates.includes(today) ? today : dates[0];
+  }
+  return state.breakFocusDate;
+}
+function formatStartFromRange(rangeTxt){ return String(rangeTxt||'').split('-')[0] || ''; }
+function makeBreakProposalFromStarts(b1Start,lunchStart,b2Start){
+  return [rangeFromMinutes(parseClockMinutes(b1Start), parseClockMinutes(b1Start)+15), rangeFromMinutes(parseClockMinutes(lunchStart), parseClockMinutes(lunchStart)+30), rangeFromMinutes(parseClockMinutes(b2Start), parseClockMinutes(b2Start)+15)];
+}
+function validateBreakProposal(agent,dateStr,proposal,weekPlan){
+  const shift=parseRangeMinutes(getShiftTimeInfo(agent,dateStr).time);
+  const parsed=proposal.map(parseRangeMinutes);
+  if(parsed[0].start < shift.start || parsed[2].end > shift.end) return 'Breaks must stay inside the selected shift.';
+  if(parsed[0].end > parsed[1].start || parsed[1].end > parsed[2].start) return 'The order must stay: 15 min break, 30 min lunch, 15 min break.';
+  const plans=buildBreakPlanForDate(dateStr,weekPlan);
+  const slots=[];
+  Object.entries(plans).forEach(([id,br])=>{ if(Number(id)!==agent.id) slots.push(...br); });
+  const usage={};
+  slots.forEach(r=>{ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ usage[t]=(usage[t]||0)+1; } });
+  for(const r of proposal){ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ if((usage[t]||0)>=2) return 'This timing would put more than 2 agents on break at the same time.'; } }
+  return '';
+}
 function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfter){
   const startAt=alignQuarter(Math.max(fromMin, minAfter || fromMin));
   let best=null;
@@ -553,13 +593,13 @@ function buildBreakPlanForDate(dateStr,weekPlan){
     activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
+      const ov=getBreakOverride(agent.id,dateStr);
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       if(hasDemand){
         const selected=buildDemandAwareBreaks(agent,dateStr,usage);
         result[agent.id]=selected;
         return;
       }
-      const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
@@ -886,7 +926,10 @@ function renderBreaks(week,weekPlan){
     const d=new Date(week.start); d.setDate(d.getDate()+i);
     days.push({date:d, key:fmtDate(d)});
   }
+  const focusDate=syncBreakFocusDate(week);
+  const focusLabel=new Date(focusDate).toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'});
   const hours=Array.from({length:24},(_,i)=>`${pad(i)}:00`);
+  const displayHours=Array.from({length:16},(_,i)=>`${pad(i+7)}:00`);
   let maxValue=0;
   days.forEach(day=>{ hours.forEach(hour=>{ maxValue=Math.max(maxValue, Number(state.breakDemand?.[day.key]?.[hour]||0)); }); });
   const head=['<div></div>', ...days.map(day=>`<div class="heathead">${day.date.toLocaleDateString('en-GB',{weekday:'short'})}<small>${humanDate(day.date)}</small></div>`)].join('');
@@ -904,13 +947,42 @@ function renderBreaks(week,weekPlan){
       }
     });
   });
+  const focusPlans=buildBreakPlanForDate(focusDate,weekPlan);
+  const displayAgents=activeAgents();
+  const workingAgents=displayAgents.filter(agent=>weekPlan[`${agent.id}|${focusDate}`]?.status==='WORK');
+  const firstAgent=workingAgents[0];
+  const firstBreaks=firstAgent ? (focusPlans[firstAgent.id] || getBreaksForAgent(firstAgent,0,focusDate)) : ['10:00-10:15','13:00-13:30','15:30-15:45'];
+  const agentGrid=['<div></div>', ...displayHours.map(hour=>`<div class="agenthead">${hour}</div>`), '<div class="agenthead">Edit</div>'];
+  displayAgents.forEach(agent=>{
+    const dayState=weekPlan[`${agent.id}|${focusDate}`];
+    if(!dayState || dayState.status!=='WORK'){
+      agentGrid.push(`<div class="agentname">${agent.name}<small>${dayState?.status||'OFF'}</small></div>`);
+      displayHours.forEach(()=>agentGrid.push(`<div class="agentslot off">${dayState?.status==='LEAVE'?'LV':'OFF'}</div>`));
+      agentGrid.push('<div class="agenteditcell">—</div>');
+      return;
+    }
+    const shiftInfo=getShiftTimeInfo(agent,focusDate);
+    const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
+    const ranges={b1:parseRangeMinutes(breaks[0]), lunch:parseRangeMinutes(breaks[1]), b2:parseRangeMinutes(breaks[2]), shift:parseRangeMinutes(shiftInfo.time)};
+    agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name}</small></div>`);
+    displayHours.forEach(hour=>{
+      const minute=parseClockMinutes(hour);
+      let cls='off', label='';
+      if(minute>=ranges.shift.start && minute<ranges.shift.end){ cls='work'; label='W'; }
+      if(minute>=ranges.b1.start && minute<ranges.b1.end){ cls='break'; label='B1'; }
+      if(minute>=ranges.lunch.start && minute<ranges.lunch.end){ cls='lunch'; label='L'; }
+      if(minute>=ranges.b2.start && minute<ranges.b2.end){ cls='break'; label='B2'; }
+      agentGrid.push(`<div class="agentslot ${cls}">${label}</div>`);
+    });
+    agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
+  });
   const uploadState=meta.rows
     ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}</div>`
     : `<div class="warn">Upload an Excel or CSV interaction file to see the heat map for the selected week.</div>`;
   return `
     <div class="card">
       <div class="ch">Break control · ${week.label}</div>
-      <div class="note">This page now shows only the interaction heat map for the selected week. Breaks still follow the same order in the planner: 15 minutes, then 30 minutes lunch, then 15 minutes.</div>
+      <div class="note">This page shows the interaction heat map and, below it, the day-by-day agent view. Breaks always follow this order: 15 minutes, 30 minutes lunch, 15 minutes.</div>
       ${uploadState}
       <div class="rowflex">
         <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
@@ -922,6 +994,28 @@ function renderBreaks(week,weekPlan){
       <div class="ch">Interaction heat map · selected week</div>
       <div class="heatmap-wrap"><div class="heatgrid">${head}${cells.join('')}</div></div>
       <div class="legend"><span>Low</span><span class="legend-bar"></span><span>High</span></div>
+    </div>
+    <div class="card">
+      <div class="ch">Agents across the hours · ${focusLabel}</div>
+      <div class="rowflex" style="margin-bottom:10px">
+        <button class="btn" id="prevBreakDay">← Previous day</button>
+        <button class="btn" id="nextBreakDay">Next day →</button>
+        <div class="small">Choose a day, review the hourly layout, then adjust an agent’s breaks if needed.</div>
+      </div>
+      <div class="agentheat-wrap"><div class="agentheatgrid">${agentGrid.join('')}</div></div>
+    </div>
+    <div class="card">
+      <div class="ch">Edit selected agent breaks</div>
+      <div class="note">Manual edits here stay in the same flow: 15 min break, 30 min lunch, then 15 min break.</div>
+      <div class="rowflex">
+        <input type="hidden" id="editBreakDate" value="${focusDate}">
+        <div class="field"><label>Agent</label><select id="editBreakAgent">${workingAgents.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Break 1 start</label><input type="time" id="editBreak1" value="${formatStartFromRange(firstBreaks[0])}"></div>
+        <div class="field"><label>Lunch start</label><input type="time" id="editBreakLunch" value="${formatStartFromRange(firstBreaks[1])}"></div>
+        <div class="field"><label>Break 2 start</label><input type="time" id="editBreak2" value="${formatStartFromRange(firstBreaks[2])}"></div>
+        <button class="btn btnp" id="saveBreakEdit">Save break timing</button>
+        <button class="btn" id="clearBreakEdit">Clear manual override</button>
+      </div>
     </div>
   `;
 }
@@ -1076,6 +1170,73 @@ function bindPageActions(){
   if(clearBreakForecast) clearBreakForecast.onclick=()=>{
     state.breakDemand={};
     state.breakDemandMeta={source:'', rows:0, days:0, uploadedAt:''};
+    saveState();
+    render();
+  };
+  const prevBreakDay=document.getElementById('prevBreakDay');
+  if(prevBreakDay) prevBreakDay.onclick=()=>{
+    const week=getSelectedWeek();
+    const dates=[];
+    for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
+    let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
+    state.breakFocusDate=dates[Math.max(0,idx-1)];
+    render();
+  };
+  const nextBreakDay=document.getElementById('nextBreakDay');
+  if(nextBreakDay) nextBreakDay.onclick=()=>{
+    const week=getSelectedWeek();
+    const dates=[];
+    for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
+    let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
+    state.breakFocusDate=dates[Math.min(dates.length-1,idx+1)];
+    render();
+  };
+  function fillBreakEditor(agentId,dateStr,b1,lunch,b2){
+    const agentEl=document.getElementById('editBreakAgent');
+    const dateEl=document.getElementById('editBreakDate');
+    const b1El=document.getElementById('editBreak1');
+    const lunchEl=document.getElementById('editBreakLunch');
+    const b2El=document.getElementById('editBreak2');
+    if(agentEl) agentEl.value=String(agentId);
+    if(dateEl) dateEl.value=dateStr;
+    if(b1El) b1El.value=b1 || '';
+    if(lunchEl) lunchEl.value=lunch || '';
+    if(b2El) b2El.value=b2 || '';
+  }
+  document.querySelectorAll('.editDayBreak').forEach(btn=>btn.onclick=()=>{ fillBreakEditor(btn.dataset.agent, btn.dataset.date, btn.dataset.b1, btn.dataset.lunch, btn.dataset.b2); });
+  const editBreakAgent=document.getElementById('editBreakAgent');
+  if(editBreakAgent) editBreakAgent.onchange=()=>{
+    const dateStr=document.getElementById('editBreakDate').value;
+    const agentId=Number(editBreakAgent.value);
+    const weekPlan=getWeekPlan(getSelectedWeek());
+    const plan=buildBreakPlanForDate(dateStr,weekPlan)[agentId] || ['10:00-10:15','13:00-13:30','15:30-15:45'];
+    fillBreakEditor(agentId,dateStr,formatStartFromRange(plan[0]),formatStartFromRange(plan[1]),formatStartFromRange(plan[2]));
+  };
+  const saveBreakEdit=document.getElementById('saveBreakEdit');
+  if(saveBreakEdit) saveBreakEdit.onclick=()=>{
+    const agentId=Number(document.getElementById('editBreakAgent').value);
+    const dateStr=document.getElementById('editBreakDate').value;
+    const b1=document.getElementById('editBreak1').value;
+    const lunch=document.getElementById('editBreakLunch').value;
+    const b2=document.getElementById('editBreak2').value;
+    if(!agentId || !dateStr || !b1 || !lunch || !b2) return alert('Please complete the break time fields first.');
+    const proposal=makeBreakProposalFromStarts(b1,lunch,b2);
+    const weekPlan=getWeekPlan(getSelectedWeek());
+    const agent=getAgentById(agentId);
+    const dayPlan=weekPlan[`${agentId}|${dateStr}`];
+    if(!agent || !dayPlan || dayPlan.status!=='WORK') return alert('This agent is not working on that date.');
+    const issue=validateBreakProposal(agent,dateStr,proposal,weekPlan);
+    if(issue) return alert(issue);
+    state.breakOverrides[`${agentId}|${dateStr}`]=proposal;
+    saveState();
+    render();
+  };
+  const clearBreakEdit=document.getElementById('clearBreakEdit');
+  if(clearBreakEdit) clearBreakEdit.onclick=()=>{
+    const agentId=Number(document.getElementById('editBreakAgent').value);
+    const dateStr=document.getElementById('editBreakDate').value;
+    if(!agentId || !dateStr) return;
+    delete state.breakOverrides[`${agentId}|${dateStr}`];
     saveState();
     render();
   };

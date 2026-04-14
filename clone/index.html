@@ -396,12 +396,12 @@ function buildBreakPlanForDate(dateStr,weekPlan){
     activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
+      const ov=getBreakOverride(agent.id,dateStr);
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       if(hasDemand){
         result[agent.id]=buildDemandAwareBreaks(agent,dateStr,usage);
         return;
       }
-      const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
