@@ -184,13 +184,14 @@ const breakTemplates={
 1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
 2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
 };
-const defaultRamadan={enabled:false,start:'',end:'',times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{}};
-const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',ramadan:'Ramadan Setup',team:'Team Setup',admin:'Admin'};
+const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
 let state=loadState();
 const urlParams=new URLSearchParams(location.search);
 const agentView=urlParams.get('view')==='agent';
 const agentViewId=Number(urlParams.get('agent')||0);
 let currentPage=agentView?'dashboard':'dashboard';
+let adminSubTab='team';
 if(agentView) document.body.classList.add('agent-mode');
 
 function currentTheme(){
@@ -256,10 +257,14 @@ function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'
 function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
+  obj.ramadan.names ||= {};
+  obj.ramadan.names[1] ||= defaultRamadan.names[1];
+  obj.ramadan.names[2] ||= defaultRamadan.names[2];
   obj.ramadan.times ||= {};
   obj.ramadan.times[1] ||= defaultRamadan.times[1];
   obj.ramadan.times[2] ||= defaultRamadan.times[2];
   obj.ramadan.agentAssignments ||= {};
+  obj.ramadan.saved = !!obj.ramadan.saved;
   return obj;
 }
 function parseClockMinutes(hm){ const [h,m]=String(hm||'00:00').split(':').map(Number); return (h||0)*60+(m||0); }
@@ -272,9 +277,13 @@ function getShiftTimeInfo(agent,dateStr){
   if(isRamadanDate(dateStr)){
     const assign=getRamadanAssignment(agent);
     const slot=(assign==='auto') ? String(agent.shift) : assign;
-    if(slot==='1' || slot==='2') return {label:(state.ramadan?.times?.[slot] || defaultRamadan.times[slot]),shift:Number(slot),ramadan:true};
+    if(slot==='1' || slot==='2'){
+      const name=(state.ramadan?.names?.[slot] || defaultRamadan.names[slot]);
+      const time=(state.ramadan?.times?.[slot] || defaultRamadan.times[slot]);
+      return {label:`${name} · ${time}`,name,time,shift:Number(slot),ramadan:true};
+    }
   }
-  return {label:shiftLabel[agent.shift],shift:agent.shift,ramadan:false};
+  return {label:`Shift ${agent.shift} · ${shiftLabel[agent.shift]}`,name:`Shift ${agent.shift}`,time:shiftLabel[agent.shift],shift:agent.shift,ramadan:false};
 }
 function getDynamicBreakTemplates(rangeStr){
   const [startTxt,endTxt]=String(rangeStr||'').split('-');
@@ -287,7 +296,7 @@ function getDynamicBreakTemplates(rangeStr){
     [rangeFromMinutes(start+120,start+135),rangeFromMinutes(start+210,start+240),rangeFromMinutes(start+300,start+315)]
   ];
 }
-function getBreakTemplatesForAgent(agent,dateStr){ const shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.label) : (breakTemplates[agent.shift]||breakTemplates[1]); }
+function getBreakTemplatesForAgent(agent,dateStr){ const shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.time) : (breakTemplates[agent.shift]||breakTemplates[1]); }
 function shuffleInPlace(arr){
   for(let i=arr.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));
@@ -317,6 +326,26 @@ function autoAssignBalancedShifts(){
   }
   arabic.forEach(a=>assign(a,'arabic'));
   english.forEach(a=>assign(a,'english'));
+  return {updated:active.length,counters};
+}
+function autoAssignRamadanByLanguage(){
+  ensureRamadanSettings(state);
+  const active=state.agents.filter(a=>a.active);
+  const arabic=[];
+  const english=[];
+  active.forEach(a=>{ (/Arabic/i.test(a.lang) ? arabic : english).push(a); });
+  shuffleInPlace(arabic);
+  shuffleInPlace(english);
+  const counters={1:{total:0,arabic:0,english:0},2:{total:0,arabic:0,english:0}};
+  function assign(agent,key){
+    const shift=pickBalancedShift(counters,key);
+    state.ramadan.agentAssignments[String(agent.id)]=String(shift);
+    counters[shift].total++;
+    counters[shift][key]++;
+  }
+  arabic.forEach(a=>assign(a,'arabic'));
+  english.forEach(a=>assign(a,'english'));
+  state.ramadan.saved=true;
   return {updated:active.length,counters};
 }
 function getMonthInfo(monthStr){
@@ -749,38 +778,38 @@ function renderAgentView(week,weekPlan){
   <div class="card"><div class="ch">${agent.name} · weekly schedule</div><div class="note">This view is for the individual agent. Any roster, leave, or break update from the planner reflects here automatically.</div><div class="daycards">${cards.join('')}</div></div>`;
 }
 
-function renderRamadan(week,weekPlan){
+function renderRamadan(){
   ensureRamadanSettings(state);
   const r=state.ramadan;
   const s1=splitRange(r.times[1]);
   const s2=splitRange(r.times[2]);
+  const showAssignments=!!r.saved;
   const rows=activeAgents().map(a=>`<tr>
     <td>${a.name}</td>
+    <td>${a.lang}</td>
     <td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">Regular Shift ${a.shift}</span></td>
     <td><select data-id="${a.id}" class="ramadanAssign">
       <option value="auto" ${getRamadanAssignment(a)==='auto'?'selected':''}>Auto from regular shift</option>
-      <option value="1" ${getRamadanAssignment(a)==='1'?'selected':''}>Use Ramadan Shift 1</option>
-      <option value="2" ${getRamadanAssignment(a)==='2'?'selected':''}>Use Ramadan Shift 2</option>
+      <option value="1" ${getRamadanAssignment(a)==='1'?'selected':''}>${r.names[1]} · ${r.times[1]}</option>
+      <option value="2" ${getRamadanAssignment(a)==='2'?'selected':''}>${r.names[2]} · ${r.times[2]}</option>
       <option value="regular" ${getRamadanAssignment(a)==='regular'?'selected':''}>Keep normal timing</option>
     </select></td>
   </tr>`).join('');
   return `
-    <div class="card">
-      <div class="ch">Ramadan settings</div>
-      <div class="note">Enable Ramadan mode, set the date range, then define the general Ramadan Shift 1 and Shift 2 timings. After that, choose for each agent which Ramadan timing to follow.</div>
-      <div class="rowflex">
-        <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
-        <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
-        <div class="field"><label>End date</label><input type="date" id="ramadanEnd" value="${r.end||''}"></div>
-        <div class="field"><label>Ramadan Shift 1 start</label><input type="time" id="ramadan1Start" value="${s1.start||'08:00'}"></div>
-        <div class="field"><label>Ramadan Shift 1 end</label><input type="time" id="ramadan1End" value="${s1.end||'14:00'}"></div>
-        <div class="field"><label>Ramadan Shift 2 start</label><input type="time" id="ramadan2Start" value="${s2.start||'09:00'}"></div>
-        <div class="field"><label>Ramadan Shift 2 end</label><input type="time" id="ramadan2End" value="${s2.end||'15:00'}"></div>
-        <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
-        <button class="btn" id="applyRamadanAuto">Auto assign by regular shift</button>
-      </div>
+    <div class="note">Set the Ramadan shifts here, give them names, save them once, then assign each agent manually or auto-assign by language balance.</div>
+    <div class="rowflex">
+      <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
+      <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
+      <div class="field"><label>End date</label><input type="date" id="ramadanEnd" value="${r.end||''}"></div>
+      <div class="field"><label>Shift 1 name</label><input type="text" id="ramadan1Name" value="${r.names[1]||'Ramadan Shift 1'}"></div>
+      <div class="field"><label>Shift 1 start</label><input type="time" id="ramadan1Start" value="${s1.start||'08:00'}"></div>
+      <div class="field"><label>Shift 1 end</label><input type="time" id="ramadan1End" value="${s1.end||'14:00'}"></div>
+      <div class="field"><label>Shift 2 name</label><input type="text" id="ramadan2Name" value="${r.names[2]||'Ramadan Shift 2'}"></div>
+      <div class="field"><label>Shift 2 start</label><input type="time" id="ramadan2Start" value="${s2.start||'09:00'}"></div>
+      <div class="field"><label>Shift 2 end</label><input type="time" id="ramadan2End" value="${s2.end||'15:00'}"></div>
+      <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
     </div>
-    <div class="card"><div class="ch">Per-agent Ramadan assignment</div><table class="tbl"><thead><tr><th>Agent</th><th>Regular shift</th><th>Ramadan timing choice</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${showAssignments ? `<div class="card" style="margin-top:12px"><div class="ch">Agent Ramadan assignment</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button><div class="small">Randomly spreads agents between the two Ramadan shifts while balancing Arabic-capable and English-only coverage.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Language</th><th>Regular shift</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="warn" style="margin-top:12px">Save the Ramadan setup first. Then the agent assignment table will appear here.</div>`}
   `;
 }
 
@@ -789,7 +818,7 @@ function renderTeam(){
   const sharedLink=currentAgentLink();
   return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. The app auto-generates the second off for each week and you can still edit exceptions.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred off</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
 }
-function renderAdmin(week,weekPlan){
+function renderAdmin(){
   const rows=state.agents.map(a=>`<tr>
     <td><input value="${a.name}" data-id="${a.id}" data-field="name" class="agentEdit"></td>
     <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
@@ -798,9 +827,16 @@ function renderAdmin(week,weekPlan){
       <option value="0" ${a.preferredOff===0?'selected':''}>Sunday</option><option value="1" ${a.preferredOff===1?'selected':''}>Monday</option><option value="2" ${a.preferredOff===2?'selected':''}>Tuesday</option><option value="3" ${a.preferredOff===3?'selected':''}>Wednesday</option><option value="4" ${a.preferredOff===4?'selected':''}>Thursday</option><option value="6" ${a.preferredOff===6?'selected':''}>Saturday</option></select></td>
     <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
   </tr>`).join('');
+  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
   return `
-    ${renderRamadan(week,weekPlan)}
-    <div class="card"><div class="ch">Team master data</div><div class="note">Use this only for the stable setup. Day-to-day planning should happen through the weekly planner, leave control, and break control.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn" id="autoShiftBalance">Auto-assign shifts (random + language balance)</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card">
+      <div class="ch">Admin setup</div>
+      <div class="rowflex" style="margin-bottom:12px">
+        <button class="btn ${adminSubTab==='team'?'btnp':''} adminSubTab" data-sub="team">Team master data</button>
+        <button class="btn ${adminSubTab==='ramadan'?'btnp':''} adminSubTab" data-sub="ramadan">Ramadan</button>
+      </div>
+      ${adminSubTab==='team' ? teamHtml : renderRamadan()}
+    </div>
     <div class="card"><div class="ch">Data control</div><div class="rowflex"><button class="btn" id="exportJson">Export data</button><button class="btn btnr" id="resetAll">Reset all</button></div><div id="exportBox" style="margin-top:12px"></div></div>
   `;
 }
@@ -813,6 +849,7 @@ function bindPageActions(){
   document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); render();});
   document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); render();});
   const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); render(); };
+  document.querySelectorAll('.adminSubTab').forEach(el=>el.onclick=()=>{ adminSubTab=el.dataset.sub || 'team'; render(); });
   document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; saveState(); render(); });
   document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
   const saveRamadan=document.getElementById('saveRamadan');
@@ -821,6 +858,8 @@ function bindPageActions(){
     const enabled=document.getElementById('ramadanEnabled').value==='true';
     const start=document.getElementById('ramadanStart').value || '';
     const end=document.getElementById('ramadanEnd').value || '';
+    const name1=document.getElementById('ramadan1Name').value.trim() || 'Ramadan Shift 1';
+    const name2=document.getElementById('ramadan2Name').value.trim() || 'Ramadan Shift 2';
     const s1Start=document.getElementById('ramadan1Start').value || '08:00';
     const s1End=document.getElementById('ramadan1End').value || '14:00';
     const s2Start=document.getElementById('ramadan2Start').value || '09:00';
@@ -829,19 +868,24 @@ function bindPageActions(){
     state.ramadan.enabled=enabled;
     state.ramadan.start=start;
     state.ramadan.end=end;
+    state.ramadan.names[1]=name1;
+    state.ramadan.names[2]=name2;
     state.ramadan.times[1]=`${s1Start}-${s1End}`;
     state.ramadan.times[2]=`${s2Start}-${s2End}`;
+    state.ramadan.saved=true;
     saveState();
     render();
   };
-  const applyRamadanAuto=document.getElementById('applyRamadanAuto');
-  if(applyRamadanAuto) applyRamadanAuto.onclick=()=>{
-    ensureRamadanSettings(state);
-    const map={};
-    activeAgents().forEach(a=>{ map[a.id]='auto'; });
-    state.ramadan.agentAssignments=map;
+  const autoAssignRamadan=document.getElementById('autoAssignRamadan');
+  if(autoAssignRamadan) autoAssignRamadan.onclick=()=>{
+    const result=autoAssignRamadanByLanguage();
     saveState();
     render();
+    alert(
+      `Auto-assigned ${result.updated} active agents for Ramadan.\n`+
+      `Shift 1: ${result.counters[1].total} total (${result.counters[1].arabic} Arabic-capable, ${result.counters[1].english} English-only)\n`+
+      `Shift 2: ${result.counters[2].total} total (${result.counters[2].arabic} Arabic-capable, ${result.counters[2].english} English-only)`
+    );
   };
   const autoShiftBalance=document.getElementById('autoShiftBalance');
   if(autoShiftBalance) autoShiftBalance.onclick=()=>{
