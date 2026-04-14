@@ -1,16 +1,1528 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Redirecting...</title>
-  <script>
-    const target = 'clone/admin.html' + (window.location.search || '') + (window.location.hash || '');
-    window.location.replace(target);
-  </script>
-  <meta http-equiv="refresh" content="0; url=clone/admin.html" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jaidah Automotive CX Roster Planner</title>
+<style>
+:root{--bg:#070b14;--bg2:#0b1220;--card:rgba(17,25,40,.58);--card-soft:rgba(30,41,59,.42);--ink:#e5edf7;--muted:#9fb0c5;--line:rgba(148,163,184,.23);--nav:rgba(15,23,42,.8);--brand:#3b82f6;--ok:#86efac;--warn:#fde68a;--bad:#fecaca;--off:rgba(71,85,105,.28);--leave:rgba(180,83,9,.2);--fixed:rgba(37,99,235,.2);--work:rgba(22,163,74,.18)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:radial-gradient(1300px 720px at 10% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font-size:13px}
+body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--card:rgba(255,255,255,.9);--card-soft:rgba(255,255,255,.84);--ink:#0f172a;--muted:#475569;--line:rgba(100,116,139,.25);--nav:rgba(255,255,255,.82);--brand:#2563eb;--ok:#166534;--warn:#92400e;--bad:#991b1b;--off:rgba(203,213,225,.45);--leave:rgba(251,146,60,.22);--fixed:rgba(147,197,253,.35);--work:rgba(134,239,172,.32);background:radial-gradient(1200px 700px at 0% -10%,#bfdbfe 0%,transparent 58%),radial-gradient(1000px 700px at 100% 0%,#dbeafe 0%,transparent 55%),linear-gradient(160deg,#eff6ff,#f8fafc)}
+button,input,select,textarea{font:inherit}
+body.sidebar-collapsed .side{width:72px;transform:none}
+body.sidebar-collapsed .main{margin-left:72px}
+body.sidebar-collapsed .brand{padding:14px 8px;text-align:center}
+body.sidebar-collapsed .brand h2,
+body.sidebar-collapsed .brand p,
+body.sidebar-collapsed .foot,
+body.sidebar-collapsed .nb .txt{display:none}
+body.sidebar-collapsed .brand-head{justify-content:center}
+body.sidebar-collapsed .nb{padding:11px 8px;display:flex;justify-content:center}
+.layout{display:flex;min-height:100vh}
+.side{width:230px;background:var(--nav);color:#fff;display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(14px);border-right:1px solid var(--line);position:fixed;left:0;top:0;bottom:0;z-index:40;transition:width .25s ease}
+.brand{padding:18px 16px;border-bottom:1px solid rgba(148,163,184,.2)}
+.brand-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.brand h2{font-size:16px;margin-bottom:0}.brand p{font-size:11px;color:rgba(226,232,240,.64);line-height:1.45}
+.nb{display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;color:rgba(226,232,240,.75);text-align:left;cursor:pointer;font-size:12px;transition:all .2s ease}
+.nb .ico{display:inline-flex;align-items:center;justify-content:center;min-width:20px;font-size:15px}
+.nb.on,.nb:hover{background:rgba(59,130,246,.22);color:#fff;transform:translateX(2px)}
+.foot{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(148,163,184,.2);font-size:11px;color:rgba(226,232,240,.55)}
+.main{flex:1;display:flex;flex-direction:column;margin-left:230px;min-width:0;transition:margin-left .25s ease}
+.top{background:rgba(15,23,42,.58);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;backdrop-filter:blur(12px);position:sticky;top:0;z-index:30}
+.top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
+.controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;width:100%;justify-content:flex-end}
+.burger{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.06);color:inherit;border-radius:8px;cursor:pointer;transition:all .2s ease;box-shadow:none;padding:0;margin:0;flex-shrink:0}
+.burger:hover{background:rgba(59,130,246,.16)}
+body.light-theme .burger{color:#0f172a;background:rgba(255,255,255,.5)}
+.theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px);margin-left:auto}
+.theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#facc15,#fb923c);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
+.theme-toggle.light .thumb{transform:translateX(0);background:linear-gradient(120deg,#facc15,#fb923c)}
+.theme-toggle.dark .thumb{transform:translateX(42px);background:linear-gradient(120deg,#60a5fa,#22d3ee)}
+.theme-toggle button{position:relative;z-index:1;width:40px;height:30px;border:none;background:transparent;color:#cbd5e1;border-radius:999px;cursor:pointer;font-size:15px;transition:color .2s ease,transform .2s ease}
+.theme-toggle button:hover{transform:scale(1.05)}
+.theme-toggle button.active{color:#fff}
+.theme-toggle .moon-icon{display:inline-block;transform:scaleX(-1) rotate(-18deg)}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.field input,.field select,.field textarea{padding:8px 10px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;min-width:120px;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
+.field input::placeholder,.field textarea::placeholder{color:#8ba0b8}
+.field select option{background:#0f172a;color:#dbeafe}
+.field input[type="date"],.field input[type="month"],.field input[type="password"]{color-scheme:dark}
+.agentEdit{width:100%;padding:7px 9px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
+.agentEdit:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
+.agentEdit option{background:#0f172a;color:#dbeafe}
+.pg{padding:18px 20px}
+#app.week-next{animation:weekSlideNext .4s ease}
+#app.week-prev{animation:weekSlidePrev .4s ease}
+#app.week-fade .met > *,#app.week-fade .card > *,#app.week-fade .wc > *,#app.week-fade .wagent > *,#app.week-fade .daycard > *{animation:detailPulse .24s ease}
+@keyframes weekSlideNext{from{opacity:.3;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes weekSlidePrev{from{opacity:.3;transform:translateX(-28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.met{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;backdrop-filter:blur(10px);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.met:hover{transform:translateY(-3px);box-shadow:0 12px 24px rgba(2,8,22,.45);border-color:rgba(96,165,250,.45)}
+.met .l{font-size:11px;color:var(--muted);margin-bottom:4px}.met .v{font-size:24px;font-weight:700}.met .s{font-size:11px;color:var(--muted)}
+.card{background:var(--card-soft);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;backdrop-filter:blur(10px)}
+.ch{font-size:14px;font-weight:700;margin-bottom:12px}
+.note,.ok,.warn,.bad{padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:12px;line-height:1.45;backdrop-filter:blur(8px)}
+.note{background:rgba(30,58,138,.2);border:1px solid rgba(147,197,253,.34);color:#bfdbfe}
+.ok{background:rgba(21,128,61,.2);border:1px solid rgba(74,222,128,.35);color:var(--ok)}
+.warn{background:rgba(146,64,14,.25);border:1px solid rgba(251,191,36,.35);color:var(--warn)}
+.bad{background:rgba(153,27,27,.25);border:1px solid rgba(252,165,165,.35);color:var(--bad)}
+.btn{padding:8px 12px;border:1px solid rgba(148,163,184,.36);background:rgba(30,41,59,.6);color:#dbeafe;border-radius:8px;cursor:pointer;transition:all .2s ease}
+.btn:hover{background:rgba(59,130,246,.24);transform:translateY(-1px)}
+.btnp{background:linear-gradient(120deg,#2563eb,#0ea5e9);border-color:rgba(59,130,246,.8);color:#fff}
+.btnp:hover{filter:brightness(1.08)}
+.btnr{background:rgba(153,27,27,.2);border-color:rgba(252,165,165,.4);color:#fecdd3}
+.tbl{width:100%;border-collapse:collapse}.tbl th{font-size:11px;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line);font-weight:600}.tbl td{padding:8px;border-bottom:1px solid rgba(148,163,184,.14);vertical-align:middle}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid}.p-work{background:rgba(22,163,74,.2);color:#86efac;border-color:rgba(34,197,94,.4)}.p-fixed{background:rgba(37,99,235,.23);color:#bfdbfe;border-color:rgba(96,165,250,.45)}.p-off{background:rgba(71,85,105,.35);color:#cbd5e1;border-color:rgba(148,163,184,.35)}.p-leave{background:rgba(194,65,12,.25);color:#fed7aa;border-color:rgba(251,146,60,.35)}.p-sh1{background:rgba(37,99,235,.25);color:#bfdbfe;border-color:rgba(96,165,250,.45)}.p-sh2{background:rgba(109,40,217,.23);color:#ddd6fe;border-color:rgba(196,181,253,.4)}
+.weekgrid{display:grid;grid-template-columns:220px repeat(7,minmax(120px,1fr));gap:6px;align-items:stretch}
+.wh,.wc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;backdrop-filter:blur(8px)}.wh{font-size:11px;color:var(--muted);font-weight:700;text-align:center}.wc{transition:transform .2s ease,border-color .2s ease}.wc:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.4)}.wc .st{font-size:11px;font-weight:700;margin-bottom:5px}.wc .tm{font-size:11px;color:var(--muted);margin-bottom:4px}.wc .br{font-size:10px;color:#cbd5e1;line-height:1.45}
+.wagent{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;backdrop-filter:blur(8px);transition:transform .2s ease,border-color .2s ease}.wagent:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.35)}
+.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:#1e3a8a;color:#dbeafe;flex-shrink:0}
+.rowflex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tight input,.tight select{min-width:auto;width:100%}
+.leave-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
+.holiday-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr .8fr 1fr auto;gap:8px;align-items:end}
+.holiday-fixed-grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px}
+.small{font-size:11px;color:var(--muted)}
+.exporttxt{width:100%;height:200px;border:1px solid rgba(148,163,184,.38);border-radius:10px;padding:10px;background:rgba(15,23,42,.72);color:#dbeafe;resize:vertical}
+.exporttxt:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18)}
+body.light-theme .top{background:rgba(255,255,255,.78);border-bottom-color:rgba(100,116,139,.2)}
+body.light-theme .theme-toggle{background:rgba(255,255,255,.8);border-color:rgba(100,116,139,.25)}
+body.light-theme .theme-toggle button{color:#475569}
+body.light-theme .theme-toggle button.active{color:#0f172a}
+body.light-theme .side{color:#0f172a;background:rgba(255,255,255,.78)}
+body.light-theme .brand h2{color:#0f172a}
+body.light-theme .brand p{color:#475569}
+body.light-theme .foot{color:#475569}
+body.light-theme .nb{color:#334155}
+body.light-theme .nb.on,body.light-theme .nb:hover{background:rgba(191,219,254,.9);color:#0f172a}
+body.light-theme .field input,body.light-theme .field select,body.light-theme .field textarea,body.light-theme .agentEdit,body.light-theme .exporttxt{background:rgba(255,255,255,.88);color:#0f172a;border-color:rgba(100,116,139,.35)}
+body.light-theme .field input:focus,body.light-theme .field select:focus,body.light-theme .field textarea:focus,body.light-theme .agentEdit:focus,body.light-theme .exporttxt:focus{background:#fff}
+body.light-theme .field select option,body.light-theme .agentEdit option{background:#fff;color:#0f172a}
+body.light-theme .field input[type="date"],body.light-theme .field input[type="month"],body.light-theme .field input[type="password"]{color-scheme:light}
+body.light-theme .btn{background:rgba(255,255,255,.82);color:#0f172a}
+body.light-theme .note{background:rgba(219,234,254,.9);border-color:rgba(96,165,250,.35);color:#1e3a8a}
+body.light-theme .ok{background:rgba(220,252,231,.95);border-color:rgba(74,222,128,.35);color:#166534}
+body.light-theme .warn{background:rgba(254,249,195,.96);border-color:rgba(251,191,36,.35);color:#92400e}
+body.light-theme .bad{background:rgba(254,226,226,.96);border-color:rgba(248,113,113,.35);color:#991b1b}
+body.light-theme .wc .br,body.light-theme .kv{color:#1f2937}
+body.light-theme .p-work{background:#dcfce7;color:#166534;border-color:#86efac}
+body.light-theme .p-fixed{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+body.light-theme .p-off{background:#e2e8f0;color:#334155;border-color:#cbd5e1}
+body.light-theme .p-leave{background:#ffedd5;color:#9a3412;border-color:#fdba74}
+body.light-theme .p-sh1{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+body.light-theme .p-sh2{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
+body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.layout{display:block}.side{width:230px}.main{margin-left:72px}.grid4{grid-template-columns:1fr}.leave-grid,.holiday-grid,.holiday-fixed-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+
+body.agent-mode .side{display:none}
+body.agent-mode .top{align-items:center}
+body.agent-mode .top h1{margin-bottom:0}
+.linkbox{font-size:11px;color:#cbd5e1;background:rgba(15,23,42,.64);border:1px solid var(--line);border-radius:10px;padding:8px 10px;word-break:break-all}
+.daycards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.daycard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;backdrop-filter:blur(8px);transition:transform .2s ease,border-color .2s ease}
+.daycard:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.38)}
+.daycard h4{font-size:13px;margin-bottom:8px}
+.kv{font-size:12px;color:#d1d5db;line-height:1.6}
+.heatmap-wrap{overflow:auto}
+.heatgrid{display:grid;grid-template-columns:80px repeat(7,minmax(88px,1fr));gap:6px;min-width:760px}
+.heathead,.heatlabel,.heatcell{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.heathead,.heatlabel{background:var(--card);font-weight:700}
+.heathead small,.heatlabel small{display:block;color:var(--muted);font-weight:400}
+.heatcell{min-height:52px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#eef6ff}
+body.light-theme .heatcell{color:#0f172a}
+.heatcell.empty{background:rgba(148,163,184,.12);color:var(--muted)}
+.legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-bar{height:10px;width:140px;border-radius:999px;background:linear-gradient(90deg,rgba(56,189,248,.18),rgba(59,130,246,.45),rgba(147,51,234,.75))}
+.agentheat-wrap{overflow:auto}
+.agentheatgrid{display:grid;grid-template-columns:180px repeat(26,minmax(38px,1fr)) 90px;gap:3px;min-width:1220px}
+.agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
+.agenthead,.agentname{background:var(--card);font-weight:700}
+.agentname small{display:block;font-size:9px;color:var(--muted);font-weight:400;margin-top:3px}
+.agentslot{font-size:8px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.1;word-break:break-word}
+.agentslot.work{background:rgba(34,197,94,.18)}
+.agentslot.break{background:rgba(56,189,248,.4)}
+.agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
+.agentslot.off{background:rgba(148,163,184,.08);color:var(--muted)}
+.agenteditcell{background:var(--card)}
+
+</style>
 </head>
 <body>
-  <p>Redirecting to the admin scheduler...</p>
+<div class="layout">
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-head">
+        <h2>Jaidah Automotive</h2>
+        <button class="burger" id="burgerToggle" aria-label="Toggle menu">☰</button>
+      </div>
+      <p>CX roster planner<br>Friday fixed off · weekly auto-plan · leave-driven edits</p>
+    </div>
+    <button class="nb on" data-page="dashboard"><span class="ico">🏠</span><span class="txt">Dashboard</span></button>
+    <button class="nb" data-page="weekly"><span class="ico">📅</span><span class="txt">Weekly Planner</span></button>
+    <button class="nb" data-page="leave"><span class="ico">🗓️</span><span class="txt">Leave and Holidays</span></button>
+    <button class="nb" data-page="breaks"><span class="ico">☕</span><span class="txt">Break Control</span></button>
+    <button class="nb" data-page="team"><span class="ico">👥</span><span class="txt">Team Setup</span></button>
+    <button class="nb" data-page="admin"><span class="ico">⚙️</span><span class="txt">Admin</span></button>
+    <div class="foot">Built for your CX operation<br>Auto-generate first, edit only when needed</div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="sub">Selected week drives the roster. Friday is always OFF. App generates the week, you edit only where needed.</div>
+      </div>
+      <div class="controls">
+        <div class="field"><label>Month</label><input type="month" id="monthPicker"></div>
+        <div class="field"><label>Week</label><select id="weekPicker"></select></div>
+        <button class="btn" id="prevWeek">← Previous week</button>
+        <button class="btn" id="nextWeek">Next week →</button>
+        <div class="theme-toggle" id="themeToggle">
+          <div class="thumb"></div>
+          <button type="button" id="themeSun" aria-label="Light mode">☀</button>
+          <button type="button" id="themeMoon" aria-label="Dark mode"><span class="moon-icon">☾</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="pg" id="app"></div>
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+const STORAGE_KEY='jaidah_roster_v26';
+const CLOUD_MASTER_KEY='jaidah_cloud_master_key_v26';
+const THEME_KEY='jaidah_theme_v1';
+const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
+let syncTimer=null;
+let cloudPullBusy=false;
+let suppressNextSave=false;
+let cloudStatus={binId: BIN_PARAM || '', masterKey: localStorage.getItem(CLOUD_MASTER_KEY)||'', saving:false, lastSaved:'', lastError:'', connected:false};
+const defaultAgents=[
+{id:1,name:'Jofferson Nucup',lang:'English',shift:1,active:true,preferredOff:2},
+{id:2,name:'Ghizlen',lang:'English/Arabic',shift:1,active:true,preferredOff:0},
+{id:3,name:'Karen Roco',lang:'English',shift:1,active:true,preferredOff:0},
+{id:4,name:'Mohamed Amine',lang:'English/Arabic',shift:1,active:true,preferredOff:3},
+{id:5,name:'Souhire',lang:'English/Arabic',shift:1,active:true,preferredOff:4},
+{id:6,name:'Abbey Rose',lang:'English',shift:1,active:true,preferredOff:6},
+{id:7,name:'Habiba Selimi',lang:'English/Arabic',shift:1,active:true,preferredOff:3},
+{id:8,name:'Mohamed Khadraoui',lang:'English/Arabic',shift:1,active:true,preferredOff:2},
+{id:9,name:'Sief Al Dine',lang:'Arabic',shift:1,active:true,preferredOff:1},
+{id:10,name:'Hssan Boussetta',lang:'English/Arabic',shift:2,active:true,preferredOff:4},
+{id:11,name:'Lee Jerick',lang:'English/Arabic',shift:2,active:true,preferredOff:0},
+{id:12,name:'Abderahman',lang:'English/Arabic',shift:2,active:true,preferredOff:2},
+{id:13,name:'Ghada',lang:'English/Arabic',shift:2,active:true,preferredOff:3},
+{id:14,name:'Chrstine',lang:'English/Arabic',shift:2,active:true,preferredOff:2},
+{id:15,name:'Ma Cristina Beltran',lang:'English/Arabic',shift:2,active:true,preferredOff:1}
+];
+const requiredByDay={6:10,0:11,1:11,2:11,3:10,4:9,5:0}; // Sat-Fri as JS day numbers
+const shiftLabel={1:'08:00-17:30',2:'09:30-19:00'};
+const breakTemplates={
+1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
+2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
+};
+const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave and Holidays',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
+let state=loadState();
+const urlParams=new URLSearchParams(location.search);
+const agentView=urlParams.get('view')==='agent';
+const agentViewId=Number(urlParams.get('agent')||0);
+let currentPage=agentView?'dashboard':'dashboard';
+let adminSubTab='team';
+if(agentView) document.body.classList.add('agent-mode');
+
+function currentTheme(){
+  return localStorage.getItem(THEME_KEY) || 'dark';
+}
+function applyTheme(theme){
+  document.body.classList.toggle('light-theme', theme==='light');
+  const wrap=document.getElementById('themeToggle');
+  const moon=document.getElementById('themeMoon');
+  const sun=document.getElementById('themeSun');
+  if(wrap){
+    wrap.classList.toggle('light', theme==='light');
+    wrap.classList.toggle('dark', theme==='dark');
+  }
+  if(moon){
+    moon.classList.toggle('active', theme==='dark');
+    moon.setAttribute('aria-pressed', theme==='dark' ? 'true' : 'false');
+  }
+  if(sun){
+    sun.classList.toggle('active', theme==='light');
+    sun.setAttribute('aria-pressed', theme==='light' ? 'true' : 'false');
+  }
+}
+function setTheme(theme){
+  localStorage.setItem(THEME_KEY,theme);
+  applyTheme(theme);
+}
+function toggleTheme(){
+  const next=currentTheme()==='light' ? 'dark' : 'light';
+  setTheme(next);
+}
+applyTheme(currentTheme());
+if(localStorage.getItem('jaidah_sidebar_collapsed_v1')==='true') document.body.classList.add('sidebar-collapsed');
+function syncBurgerIcon(){
+  const burger=document.getElementById('burgerToggle');
+  if(!burger) return;
+  const collapsed=document.body.classList.contains('sidebar-collapsed');
+  burger.textContent = collapsed ? '☰' : '✕';
+}
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed=JSON.parse(raw);
+      parsed.agents ||= JSON.parse(JSON.stringify(defaultAgents));
+      parsed.leaves ||= [];
+      parsed.holidays ||= [];
+      parsed.weekOverrides ||= {};
+      parsed.month ||= todayMonth();
+      parsed.selectedWeek ||= 0;
+      parsed.breakOverrides ||= {};
+      ensureBreakPlannerSettings(parsed);
+      ensureRamadanSettings(parsed);
+      return parsed;
+    }
+  }catch(e){}
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],holidays:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  if(suppressNextSave){
+    suppressNextSave=false;
+    return;
+  }
+  if(cloudStatus.binId && cloudStatus.masterKey) scheduleCloudSave();
+}
+function todayMonth(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function pad(n){return String(n).padStart(2,'0');}
+function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
+function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
+function ensureBreakPlannerSettings(obj){
+  obj.breakDemand ||= {};
+  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
+  obj.breakFocusDate ||= '';
+  obj.breakSyncVersion ||= 0;
+  obj.syncVersion ||= 0;
+  obj.lastUpdatedAt ||= '';
+  return obj;
+}
+function markRosterSyncChange(){
+  ensureBreakPlannerSettings(state);
+  state.syncVersion=Date.now();
+  state.lastUpdatedAt=new Date().toLocaleString();
+}
+function markBreakSyncChange(){
+  markRosterSyncChange();
+  state.breakSyncVersion=state.syncVersion;
+  state.breakDemandMeta.updatedAt=state.lastUpdatedAt;
+}
+function ensureRamadanSettings(obj){
+  obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
+  obj.ramadan.names ||= {};
+  obj.ramadan.times ||= {};
+  obj.ramadan.names[1] ||= defaultRamadan.names[1];
+  obj.ramadan.names[2] ||= defaultRamadan.names[2];
+  obj.ramadan.times[1] ||= defaultRamadan.times[1];
+  obj.ramadan.times[2] ||= defaultRamadan.times[2];
+  obj.ramadan.agentAssignments ||= {};
+  obj.ramadan.saved = !!obj.ramadan.saved;
+  return obj;
+}
+function getRamadanShiftIds(){
+  ensureRamadanSettings(state);
+  const ids=[...new Set([...Object.keys(state.ramadan.names||{}), ...Object.keys(state.ramadan.times||{})])]
+    .filter(Boolean)
+    .sort((a,b)=>Number(a)-Number(b));
+  return ids.length ? ids : ['1','2'];
+}
+function getNextRamadanShiftId(){
+  const ids=getRamadanShiftIds().map(Number).filter(n=>!Number.isNaN(n));
+  return String((ids.length ? Math.max(...ids) : 0) + 1);
+}
+function getSuggestedRamadanTime(){
+  const ids=getRamadanShiftIds();
+  const lastId=ids[ids.length-1];
+  const base=splitRange((state.ramadan.times||{})[lastId] || defaultRamadan.times[2]);
+  const start=parseClockMinutes(base.start || '09:00') + 30;
+  const end=parseClockMinutes(base.end || '15:00') + 30;
+  return rangeFromMinutes(start,end);
+}
+function parseClockMinutes(hm){ const [h,m]=String(hm||'00:00').split(':').map(Number); return (h||0)*60+(m||0); }
+function formatClockMinutes(total){ const h=Math.floor(total/60)%24; const m=total%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function rangeFromMinutes(start,end){ return `${formatClockMinutes(start)}-${formatClockMinutes(end)}`; }
+function splitRange(range){ const [start,end]=String(range||'').split('-'); return {start:start||'',end:end||''}; }
+function isRamadanDate(dateStr){ const r=state.ramadan||defaultRamadan; return !!(r.enabled && r.start && r.end && dateStr>=r.start && dateStr<=r.end); }
+function getRamadanAssignment(agent){ const r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
+function getShiftTimeInfo(agent,dateStr){
+  if(isRamadanDate(dateStr)){
+    const shiftIds=getRamadanShiftIds();
+    const assign=getRamadanAssignment(agent);
+    let slot=(assign==='auto') ? String(agent.shift) : assign;
+    if(assign!=='regular' && !shiftIds.includes(slot)) slot=shiftIds[0];
+    if(assign!=='regular' && shiftIds.includes(String(slot))){
+      const name=(state.ramadan?.names?.[slot] || `Ramadan Shift ${slot}`);
+      const time=(state.ramadan?.times?.[slot] || defaultRamadan.times[2]);
+      return {label:`${name} · ${time}`,name,time,shift:Number(slot),ramadan:true};
+    }
+  }
+  return {label:`Shift ${agent.shift} · ${shiftLabel[agent.shift]}`,name:`Shift ${agent.shift}`,time:shiftLabel[agent.shift],shift:agent.shift,ramadan:false};
+}
+function getDynamicBreakTemplates(rangeStr){
+  const [startTxt,endTxt]=String(rangeStr||'').split('-');
+  if(!endTxt) return null;
+  const start=parseClockMinutes(startTxt), end=parseClockMinutes(endTxt), total=end-start;
+  if(total<300) return [[rangeFromMinutes(start+75,start+90),rangeFromMinutes(start+150,start+165),rangeFromMinutes(start+225,start+240)]];
+  return [
+    [rangeFromMinutes(start+90,start+105),rangeFromMinutes(start+180,start+210),rangeFromMinutes(start+270,start+285)],
+    [rangeFromMinutes(start+105,start+120),rangeFromMinutes(start+195,start+225),rangeFromMinutes(start+285,start+300)],
+    [rangeFromMinutes(start+120,start+135),rangeFromMinutes(start+210,start+240),rangeFromMinutes(start+300,start+315)]
+  ];
+}
+function getBreakTemplatesForAgent(agent,dateStr){ const shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.time) : (breakTemplates[agent.shift]||breakTemplates[1]); }
+function shuffleInPlace(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function pickBalancedShift(counters,key){
+  const s1=counters[1], s2=counters[2];
+  if(s1.total!==s2.total) return s1.total<s2.total ? 1 : 2;
+  if(s1[key]!==s2[key]) return s1[key]<s2[key] ? 1 : 2;
+  return Math.random()<0.5 ? 1 : 2;
+}
+function autoAssignBalancedShifts(){
+  const active=state.agents.filter(a=>a.active);
+  const arabic=[];
+  const english=[];
+  active.forEach(a=>{ (/Arabic/i.test(a.lang) ? arabic : english).push(a); });
+  shuffleInPlace(arabic);
+  shuffleInPlace(english);
+  const counters={1:{total:0,arabic:0,english:0},2:{total:0,arabic:0,english:0}};
+  function assign(agent,key){
+    const shift=pickBalancedShift(counters,key);
+    agent.shift=shift;
+    counters[shift].total++;
+    counters[shift][key]++;
+  }
+  arabic.forEach(a=>assign(a,'arabic'));
+  english.forEach(a=>assign(a,'english'));
+  return {updated:active.length,counters};
+}
+function autoAssignRamadanByLanguage(){
+  ensureRamadanSettings(state);
+  const shiftIds=getRamadanShiftIds();
+  const active=state.agents.filter(a=>a.active);
+  const arabic=[];
+  const english=[];
+  active.forEach(a=>{ (/Arabic/i.test(a.lang) ? arabic : english).push(a); });
+  shuffleInPlace(arabic);
+  shuffleInPlace(english);
+  const counters={};
+  shiftIds.forEach(id=>{ counters[id]={total:0,arabic:0,english:0}; });
+  function pickRamadanShift(key){
+    let best=shiftIds[0];
+    shiftIds.forEach(id=>{
+      if(!best) best=id;
+      else if(counters[id].total < counters[best].total) best=id;
+      else if(counters[id].total === counters[best].total && counters[id][key] < counters[best][key]) best=id;
+      else if(counters[id].total === counters[best].total && counters[id][key] === counters[best][key] && Math.random()<0.5) best=id;
+    });
+    return best;
+  }
+  function assign(agent,key){
+    const shift=pickRamadanShift(key);
+    state.ramadan.agentAssignments[String(agent.id)]=String(shift);
+    counters[shift].total++;
+    counters[shift][key]++;
+  }
+  arabic.forEach(a=>assign(a,'arabic'));
+  english.forEach(a=>assign(a,'english'));
+  state.ramadan.saved=true;
+  return {updated:active.length,counters};
+}
+function getMonthInfo(monthStr){
+  const [y,m]=monthStr.split('-').map(Number); const first=new Date(y,m-1,1); const last=new Date(y,m,0); const weeks=[];
+  let start=new Date(first); while(start.getDay()!==6) start.setDate(start.getDate()-1); // back to Saturday
+  while(start<=last || start.getDay()!==6 || weeks.length===0){
+    const s=new Date(start); const e=new Date(start); e.setDate(e.getDate()+6); weeks.push({start:s,end:e,label:`${humanDate(s)} - ${humanDate(e)}`}); start.setDate(start.getDate()+7);
+    if(start>last && start.getMonth()!==first.getMonth() && start.getDay()===6) break;
+  }
+  return {year:y,month:m,weeks};
+}
+function getSelectedWeek(){const info=getMonthInfo(state.month); if(state.selectedWeek>info.weeks.length-1) state.selectedWeek=info.weeks.length-1; if(state.selectedWeek<0) state.selectedWeek=0; return info.weeks[state.selectedWeek];}
+function weekKey(start){return fmtDate(start);} 
+function isArabic(agent){return /Arabic/i.test(agent.lang);} 
+function normalizePreferredOff(value){ const num=Number(value); return [0,1,2,3,4,6].includes(num) ? num : -1; }
+function preferredOffLabel(value){ const labels={0:'Sunday',1:'Monday',2:'Tuesday',3:'Wednesday',4:'Thursday',6:'Saturday'}; return labels[normalizePreferredOff(value)] || 'Not specified'; }
+function preferredOffOptions(value){
+  const selected=normalizePreferredOff(value);
+  return `<option value="-1" ${selected===-1?'selected':''}>Not specified</option><option value="0" ${selected===0?'selected':''}>Sunday</option><option value="1" ${selected===1?'selected':''}>Monday</option><option value="2" ${selected===2?'selected':''}>Tuesday</option><option value="3" ${selected===3?'selected':''}>Wednesday</option><option value="4" ${selected===4?'selected':''}>Thursday</option><option value="6" ${selected===6?'selected':''}>Saturday</option>`;
+}
+function stableOffNoise(agentId,dateStr){
+  const seed=`${agentId}|${dateStr}|${state.month||''}`;
+  let hash=0;
+  for(let i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
+  return Math.abs(hash%1000)/1000;
+}
+function getLeaveDates(agentId,start,end){
+  const out=[]; let d=new Date(start); const e=new Date(end); while(d<=e){out.push(fmtDate(d)); d.setDate(d.getDate()+1);} return out;
+}
+function getLeaveMap(){
+  const map={};
+  state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
+  return map;
+}
+function getHolidayFixedDates(holiday){
+  const allowed=new Set(getLeaveDates(0,holiday.start,holiday.end));
+  return [...new Set([...(holiday.fixedDates||[])].map(x=>String(x||'').trim()).filter(x=>allowed.has(x)))];
+}
+function getHolidayMap(baseLeaveMap){
+  const map={};
+  const leaveMap=baseLeaveMap || getLeaveMap();
+  (state.holidays||[]).forEach((holiday,index)=>{
+    if(!holiday?.start || !holiday?.end) return;
+    const title=(holiday.name||`Holiday ${index+1}`).trim();
+    const fixedDates=getHolidayFixedDates(holiday);
+    const totalDays=getLeaveDates(0,holiday.start,holiday.end).length;
+    const randomCount=Math.max(0, totalDays-fixedDates.length);
+    const windowStart=new Date(holiday.start);
+    const windowEnd=new Date(holiday.start);
+    windowEnd.setDate(windowEnd.getDate() + ((Number(holiday.distributionWeeks)||1) * 7) - 1);
+    const pool=[];
+    for(let d=new Date(windowStart); d<=windowEnd; d.setDate(d.getDate()+1)){
+      const ds=fmtDate(d);
+      if(d.getDay()===5 || fixedDates.includes(ds)) continue;
+      pool.push(ds);
+    }
+    activeAgents().forEach(agent=>{
+      fixedDates.forEach(ds=>{
+        if(!leaveMap[`${agent.id}|${ds}`]) map[`${agent.id}|${ds}`]=`${title} · fixed off`;
+      });
+      const ranked=pool
+        .filter(ds=>!leaveMap[`${agent.id}|${ds}`])
+        .map(ds=>{
+          const dow=new Date(ds).getDay();
+          const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+          return {date:ds, score:operationBias + stableOffNoise(`${agent.id}-${index}`,ds)};
+        })
+        .sort((a,b)=>a.score-b.score)
+        .slice(0,randomCount);
+      ranked.forEach(item=>{
+        if(!map[`${agent.id}|${item.date}`]) map[`${agent.id}|${item.date}`]=`${title} · distributed off`;
+      });
+    });
+  });
+  return map;
+}
+function activeAgents(){return state.agents.filter(a=>a.active);}
+function getAgentById(id){return state.agents.find(a=>a.id===id);}
+function getAgentLink(agentId){return currentAgentLink();}
+function countWeeklyLeaves(agentId,week){
+  const leaveMap=getLeaveMap(); let c=0; for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); if(leaveMap[`${agentId}|${fmtDate(d)}`]) c++; } return c;
+}
+function autoSecondOffDate(agent,week){
+  if(countWeeklyLeaves(agent.id,week)>=2) return null; // leave already gives rest
+  let best=null;
+  const preferred=normalizePreferredOff(agent.preferredOff);
+  const hasPreferred=preferred!==-1;
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const dow=d.getDay();
+    if(dow===5) continue; // Friday fixed off handled separately
+    const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    const preferenceBias=hasPreferred ? (dow===preferred?0:2) : stableOffNoise(agent.id,fmtDate(d));
+    const score=operationBias+preferenceBias;
+    if(!best || score<best.score) best={date:fmtDate(d),score};
+  }
+  return best?best.date:null;
+}
+function getWeekPlan(week){
+  const leaveMap=getLeaveMap();
+  const holidayMap=getHolidayMap(leaveMap);
+  const overrides=state.weekOverrides[weekKey(week.start)]||{};
+  const plan={};
+  activeAgents().forEach(agent=>{
+    const secondOff=autoSecondOffDate(agent,week);
+    for(let i=0;i<7;i++){
+      const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const k=`${agent.id}|${ds}`;
+      let status='WORK'; let reason='';
+      if(d.getDay()===5){status='OFF'; reason='Friday fixed';}
+      else if(holidayMap[k]){status='OFF'; reason=holidayMap[k];}
+      else if(leaveMap[k]){status='LEAVE'; reason=leaveMap[k];}
+      else if(secondOff && ds===secondOff){status='OFF'; reason='Weekly off';}
+      if(overrides[k]){status=overrides[k].status; reason=overrides[k].reason||'Manual edit';}
+      plan[k]={status,reason};
+    }
+  });
+  return plan;
+}
+function getDaySummary(dateStr,weekPlan){
+  let available=0, arabic=0, shift1=0, shift2=0, extra=0, off=0, leave=0, required=requiredByDay[new Date(dateStr).getDay()]||0;
+  activeAgents().forEach(a=>{
+    const p=weekPlan[`${a.id}|${dateStr}`];
+    if(!p) return;
+    if(p.status==='WORK'){
+      const shiftInfo=getShiftTimeInfo(a,dateStr);
+      available++;
+      if(shiftInfo.shift===1) shift1++; else if(shiftInfo.shift===2) shift2++; else extra++;
+      if(isArabic(a)) arabic++;
+    }else if(p.status==='LEAVE'){
+      leave++;
+    }else if(p.status==='OFF'){
+      off++;
+    }
+  });
+  return {available,arabic,required,gap:available-required,shift1,shift2,extra,off,leave};
+}
+function getBreaksForAgent(agent,workingAgentsOfShiftIndex,dateStr){
+  const arr=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[agent.shift]||breakTemplates[1];
+  return arr[workingAgentsOfShiftIndex%arr.length];
+}
+function parseRangeMinutes(r){
+  const [s,e]=r.split('-');
+  const [sh,sm]=s.split(':').map(Number);
+  const [eh,em]=e.split(':').map(Number);
+  return {start:sh*60+sm,end:eh*60+em};
+}
+function overlapsRange(a,b){ return a.start < b.end && b.start < a.end; }
+function getBreakOverride(agentId,dateStr){ return state.breakOverrides[`${agentId}|${dateStr}`] || null; }
+function countBreakConflicts(dateStr, weekPlan, proposal, exceptAgentId){
+  const ranges=[proposal[0],proposal[1],proposal[2]].map(parseRangeMinutes);
+  let count=0;
+  activeAgents().forEach(agent=>{
+    if(agent.id===exceptAgentId) return;
+    const p=weekPlan[`${agent.id}|${dateStr}`];
+    if(!p || p.status!=='WORK') return;
+    const current=getBreakOverride(agent.id,dateStr) || null;
+    const br=current ? [current[0],current[1],current[2]] : null;
+    const fallback = br || null;
+    const other=(fallback || []);
+    if(!other.length) return;
+    const oRanges=other.map(parseRangeMinutes);
+    ranges.forEach(r=>{ oRanges.forEach(orng=>{ if(overlapsRange(r,orng)) count++; }); });
+  });
+  return count;
+}
+function getBreakDemandForDate(dateStr){ return state.breakDemand?.[dateStr] || null; }
+function alignQuarter(mins){ return Math.ceil(mins/15)*15; }
+function demandAtMinute(dateStr, minute){
+  const hourly=getBreakDemandForDate(dateStr);
+  if(!hourly) return 0;
+  const key=`${pad(Math.floor(minute/60))}:00`;
+  return Number(hourly[key] || 0);
+}
+function reserveUsage(usage, rangeTxt){
+  const range=parseRangeMinutes(rangeTxt);
+  for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
+}
+function syncBreakFocusDate(week){
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i);
+    dates.push(fmtDate(d));
+  }
+  const today=fmtDate(new Date());
+  if(!state.breakFocusDate || !dates.includes(state.breakFocusDate)){
+    state.breakFocusDate=dates.includes(today) ? today : dates[0];
+  }
+  return state.breakFocusDate;
+}
+function formatStartFromRange(rangeTxt){ return String(rangeTxt||'').split('-')[0] || ''; }
+function makeBreakProposalFromStarts(b1Start,lunchStart,b2Start){
+  return [rangeFromMinutes(parseClockMinutes(b1Start), parseClockMinutes(b1Start)+15), rangeFromMinutes(parseClockMinutes(lunchStart), parseClockMinutes(lunchStart)+30), rangeFromMinutes(parseClockMinutes(b2Start), parseClockMinutes(b2Start)+15)];
+}
+function validateBreakProposal(agent,dateStr,proposal,weekPlan){
+  const shift=parseRangeMinutes(getShiftTimeInfo(agent,dateStr).time);
+  const parsed=proposal.map(parseRangeMinutes);
+  if(parsed[0].start < shift.start || parsed[2].end > shift.end) return 'Breaks must stay inside the selected shift.';
+  if(parsed[0].end > parsed[1].start || parsed[1].end > parsed[2].start) return 'The order must stay: 15 min break, 30 min lunch, 15 min break.';
+  const plans=buildBreakPlanForDate(dateStr,weekPlan);
+  const slots=[];
+  Object.entries(plans).forEach(([id,br])=>{ if(Number(id)!==agent.id) slots.push(...br); });
+  const usage={};
+  slots.forEach(r=>{ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ usage[t]=(usage[t]||0)+1; } });
+  for(const r of proposal){ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ if((usage[t]||0)>=2) return 'This timing would put more than 2 agents on break at the same time.'; } }
+  return '';
+}
+function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfter){
+  const startAt=alignQuarter(Math.max(fromMin, minAfter || fromMin));
+  let best=null;
+  for(let t=startAt; t+duration<=toMin; t+=15){
+    let blocked=false;
+    let score=0;
+    for(let m=t; m<t+duration; m+=15){
+      if((usage[m]||0)>=2){ blocked=true; break; }
+      score += demandAtMinute(dateStr,m) + ((usage[m]||0)*250);
+    }
+    if(blocked) continue;
+    if(!best || score<best.score) best={start:t, score};
+  }
+  return best ? rangeFromMinutes(best.start,best.start+duration) : null;
+}
+function buildDemandAwareBreaks(agent,dateStr,usage){
+  const shiftInfo=getShiftTimeInfo(agent,dateStr);
+  const parsed=parseRangeMinutes(shiftInfo.time);
+  const total=parsed.end-parsed.start;
+  const fallback=getBreaksForAgent(agent,0,dateStr);
+  if(total<240) return fallback;
+  const b1=pickLowestDemandRange(dateStr, parsed.start+60, Math.min(parsed.start+180, parsed.end-180), 15, usage);
+  const b1End=b1 ? parseRangeMinutes(b1).end : parsed.start+90;
+  if(b1) reserveUsage(usage,b1);
+  const lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), parsed.end-90, 30, usage, b1End+60);
+  const lunchEnd=lunch ? parseRangeMinutes(lunch).end : parsed.start+240;
+  if(lunch) reserveUsage(usage,lunch);
+  const b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), parsed.end-30, 15, usage, lunchEnd+60);
+  if(b2) reserveUsage(usage,b2);
+  return [b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+}
+function buildBreakPlanForDate(dateStr,weekPlan){
+  const result={};
+  const usage={};
+  const hasDemand=!!getBreakDemandForDate(dateStr);
+  const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
+  shiftIds.forEach(shift=>{
+    let idx=0;
+    activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
+      const p=weekPlan[`${agent.id}|${dateStr}`];
+      if(!p || p.status!=='WORK') return;
+      const ov=getBreakOverride(agent.id,dateStr);
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
+      if(hasDemand){
+        const selected=buildDemandAwareBreaks(agent,dateStr,usage);
+        result[agent.id]=selected;
+        return;
+      }
+      const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
+      let selected=templates[idx % templates.length];
+      for(let step=0; step<templates.length; step++) {
+        const cand=templates[(idx+step) % templates.length];
+        if(cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+      }
+      result[agent.id]=selected;
+      selected.forEach(x=>reserveUsage(usage,x));
+      idx++;
+    });
+  });
+  return result;
+}
+
+function normalKey(s=''){ return String(s).toLowerCase().replace(/[^a-z0-9]/g,''); }
+function pickRowValue(row, names){
+  const wanted=names.map(normalKey);
+  for(const [k,v] of Object.entries(row||{})){
+    const nk=normalKey(k);
+    if(wanted.includes(nk) || wanted.some(w=>nk.includes(w) || w.includes(nk))) return v;
+  }
+  return '';
+}
+function parseUploadMonthValue(value){
+  if(value==null || value==='') return Number((state.month||todayMonth()).split('-')[1]);
+  const months={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+  const text=String(value).trim().toLowerCase();
+  if(months[text]) return months[text];
+  const num=Number(text);
+  if(num>=1 && num<=12) return num;
+  const dt=new Date(text);
+  return Number.isNaN(dt.getTime()) ? null : (dt.getMonth()+1);
+}
+function parseUploadDayValue(value){
+  const num=Number(value);
+  if(num>=1 && num<=31) return num;
+  const dt=new Date(value);
+  if(!Number.isNaN(dt.getTime())) return dt.getDate();
+  const match=String(value).match(/\d{1,2}/);
+  return match ? Number(match[0]) : null;
+}
+function parseUploadHourValue(value){
+  if(typeof value==='number'){
+    if(value>=0 && value<=23) return `${pad(value)}:00`;
+    if(value>0 && value<1){ const mins=Math.round(value*24*60); return `${pad(Math.floor(mins/60))}:00`; }
+  }
+  const text=String(value||'').trim();
+  if(/^\d{1,2}$/.test(text)) return `${pad(Number(text))}:00`;
+  const dt=new Date(`2000-01-01 ${text}`);
+  if(!Number.isNaN(dt.getTime())) return `${pad(dt.getHours())}:00`;
+  const match=text.match(/(\d{1,2})/);
+  return match ? `${pad(Number(match[1]))}:00` : null;
+}
+function parseUploadDateHourValue(value){
+  const text=String(value||'').trim();
+  if(!text) return null;
+  const normalized=text.replace(/\./g,'-').replace(/\//g,'-');
+  const match=normalized.match(/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):?(\d{2})?/);
+  if(match){
+    return {year:Number(match[1]),month:Number(match[2]),day:Number(match[3]),hour:`${pad(Number(match[4]))}:00`};
+  }
+  const dt=new Date(normalized);
+  if(!Number.isNaN(dt.getTime())){
+    return {year:dt.getFullYear(),month:dt.getMonth()+1,day:dt.getDate(),hour:`${pad(dt.getHours())}:00`};
+  }
+  return null;
+}
+function importBreakDemandRows(rows, fileName){
+  ensureBreakPlannerSettings(state);
+  const defaultYear=Number((state.month||todayMonth()).split('-')[0]);
+  const demand={};
+  let imported=0;
+  rows.forEach(row=>{
+    const combined=parseUploadDateHourValue(pickRowValue(row,['dategroupfullhour','fullhour','datetime','date time']));
+    const month=combined?.month || parseUploadMonthValue(pickRowValue(row,['month']));
+    const day=combined?.day || parseUploadDayValue(pickRowValue(row,['day','date']));
+    const hour=combined?.hour || parseUploadHourValue(pickRowValue(row,['hour','time']));
+    const year=combined?.year || defaultYear;
+    const interactions=Number(pickRowValue(row,['countoffered','count - offered','number of interaction','number of interactions','interaction','interactions','volume','count']));
+    if(!month || !day || !hour || Number.isNaN(interactions)) return;
+    const dateStr=`${year}-${pad(month)}-${pad(day)}`;
+    demand[dateStr] ||= {};
+    demand[dateStr][hour]=(demand[dateStr][hour]||0)+interactions;
+    imported++;
+  });
+  if(!imported) throw new Error('Use Interactions.csv headers like Date Group - Full Hour and Count - Offered, or Month, Day, Hour and Number of Interaction.');
+  state.breakDemand=demand;
+  state.breakDemandMeta={source:fileName, rows:imported, days:Object.keys(demand).length, uploadedAt:new Date().toLocaleString(), updatedAt:''};
+  state.breakOverrides={};
+  markBreakSyncChange();
+}
+function publicState(){ return JSON.parse(JSON.stringify(state)); }
+async function fetchJson(url, opts={}){
+  const res=await fetch(url, opts);
+  let data=null;
+  try{ data=await res.json(); }catch(e){}
+  if(!res.ok){
+    const msg=(data && (data.message||data.error)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+function applyBinToUrl(binId){
+  const u=new URL(location.href);
+  if(binId) u.searchParams.set('bin',binId); else u.searchParams.delete('bin');
+  history.replaceState({},'',u.toString());
+}
+async function loadCloudState(binId){
+  const data=await fetchJson(`https://api.jsonbin.io/v3/b/${binId}/latest`, {headers:{'X-Bin-Meta':'false'}});
+  if(!data || !data.agents) throw new Error('Cloud record is empty or invalid.');
+  state=data;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  cloudStatus.connected=true;
+  cloudStatus.binId=binId;
+  applyBinToUrl(binId);
+}
+async function pullCloudStateIfChanged(){
+  if(!cloudStatus.binId || cloudPullBusy || cloudStatus.saving) return;
+  const ae=document.activeElement;
+  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+  cloudPullBusy=true;
+  try{
+    const data=await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}/latest`, {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
+    if(data && data.agents){
+      const localRaw=JSON.stringify(state);
+      const remoteRaw=JSON.stringify(data);
+      if(remoteRaw!==localRaw){
+        state=data;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        suppressNextSave=true;
+        render();
+      }
+      cloudStatus.connected=true;
+      updateCloudBanner();
+    }
+  }catch(err){
+    cloudStatus.lastError='';
+  }finally{
+    cloudPullBusy=false;
+  }
+}
+async function createCloudBin(masterKey){
+  const data=await fetchJson('https://api.jsonbin.io/v3/b',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'X-Master-Key': masterKey,
+      'X-Bin-Private':'false',
+      'X-Bin-Name':'Jaidah CX Roster'
+    },
+    body: JSON.stringify(publicState())
+  });
+  return data.metadata && data.metadata.id;
+}
+async function saveCloudNow(){
+  if(!cloudStatus.binId || !cloudStatus.masterKey) return;
+  cloudStatus.saving=true;
+  cloudStatus.lastError='';
+  try{
+    await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':cloudStatus.masterKey},
+      body: JSON.stringify(publicState())
+    });
+    cloudStatus.lastSaved=new Date().toLocaleTimeString();
+    cloudStatus.connected=true;
+  }catch(err){
+    cloudStatus.lastError=err.message || 'Cloud save failed.';
+  }finally{
+    cloudStatus.saving=false;
+    updateCloudBanner();
+  }
+}
+function scheduleCloudSave(){
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(saveCloudNow, 600);
+}
+function currentAgentLink(){
+  const u=new URL(location.href);
+  const out=new URL('index.html', u.href);
+  if(cloudStatus.binId) out.searchParams.set('bin', cloudStatus.binId);
+  return out.toString();
+}
+function currentAdminLink(){
+  const u=new URL(location.href);
+  if(cloudStatus.binId) u.searchParams.set('bin', cloudStatus.binId);
+  return u.toString();
+}
+function escapeHtml(str=''){ return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function updateCloudBanner(){
+  const el=document.getElementById('cloudStatusBox');
+  if(!el) return;
+  let html='';
+  if(cloudStatus.binId){
+    html += `<div class="ok">Cloud bin connected: <strong>${cloudStatus.binId}</strong>${cloudStatus.lastSaved?` · Last saved ${cloudStatus.lastSaved}`:''}${cloudStatus.saving?' · Saving...':''}</div>`;
+    html += `<div class="small" style="margin-bottom:8px">Admin link: ${escapeHtml(currentAdminLink())}</div>`;
+    html += `<div class="small">Agent link: ${escapeHtml(currentAgentLink())}</div>`;
+  }else{
+    html += `<div class="warn">Cloud is not connected yet. Paste your JSONBin Master Key below and click Connect cloud.</div>`;
+  }
+  if(cloudStatus.lastError) html += `<div class="bad" style="margin-top:8px">${escapeHtml(cloudStatus.lastError)}</div>`;
+  el.innerHTML=html;
+}
+
+function pageNav(){
+  if(agentView){
+    document.querySelectorAll('.nb').forEach(b=>b.style.display='none');
+    const a=getAgentById(agentViewId);
+    document.getElementById('pageTitle').textContent=a?`${a.name} · My Schedule`:'Agent View';
+    return;
+  }
+  document.querySelectorAll('.nb').forEach(b=>{b.classList.toggle('on',b.dataset.page===currentPage);});
+  document.getElementById('pageTitle').textContent=pages[currentPage];
+}
+function playWeekTransition(dir){
+  const app=document.getElementById('app');
+  if(!app) return;
+  app.classList.remove('week-next','week-prev','week-fade');
+  void app.offsetWidth;
+  app.classList.add(dir==='prev' ? 'week-prev' : 'week-next');
+  app.classList.add('week-fade');
+  setTimeout(()=>app.classList.remove('week-next','week-prev','week-fade'), 360);
+}
+function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
+function syncHeader(){
+  const mi=getMonthInfo(state.month); const monthPicker=document.getElementById('monthPicker'); const weekPicker=document.getElementById('weekPicker'); monthPicker.value=state.month;
+  weekPicker.innerHTML=mi.weeks.map((w,i)=>`<option value="${i}">Week ${i+1} · ${w.label}</option>`).join(''); weekPicker.value=String(state.selectedWeek);
+  if(agentView){
+    document.getElementById('prevWeek').style.display='';
+    document.getElementById('nextWeek').style.display='';
+  }
+}
+function renderDashboard(week,weekPlan){
+  let totalAvailable=0,totalRequired=0,underDays=0; const dayCards=[];
+  const syncHint = '';
+  const today=new Date();
+  const weekEnd=new Date(week.start); weekEnd.setDate(weekEnd.getDate()+6);
+  const focusDate=(today>=week.start && today<=weekEnd)? today : new Date(week.start);
+  const focusSummary=getDaySummary(fmtDate(focusDate),weekPlan);
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); totalAvailable+=s.available; totalRequired+=s.required; if(s.gap<0) underDays++;
+    dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2}${s.extra?` · Extra ${s.extra}`:''} · Off ${s.off} · Leave ${s.leave}</div></div>`);
+  }
+  const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length + (state.holidays||[]).filter(h=> overlapsWeek(h,week)).length;
+  return `
+    ${syncHint}
+    <div class="note">This version is simplified around your real workflow: select the week, let the app generate the roster automatically, then only edit exceptions or add leave and holiday rules.</div>
+    <div class="grid4">
+      <div class="met"><div class="l">Active agents</div><div class="v">${activeAgents().length}</div><div class="s">Friday fixed off for all</div></div>
+      <div class="met"><div class="l">Total weekly coverage</div><div class="v">${totalAvailable}</div><div class="s">Required ${totalRequired}</div></div>
+      <div class="met"><div class="l">Under-covered days</div><div class="v" style="color:${underDays?'#991b1b':'#166534'}">${underDays}</div><div class="s">This selected week</div></div>
+      <div class="met"><div class="l">Leave / holiday records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
+    </div>
+    <div class="card"><div class="ch">Daily overview · ${focusDate.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}</div><div class="grid4">
+      <div class="met"><div class="l">Shift 1</div><div class="v">${focusSummary.shift1}</div><div class="s">Primary coverage</div></div>
+      <div class="met"><div class="l">Shift 2</div><div class="v">${focusSummary.shift2}</div><div class="s">Secondary coverage</div></div>
+      <div class="met"><div class="l">Extra shifts</div><div class="v">${focusSummary.extra||0}</div><div class="s">Additional Ramadan shifts</div></div>
+      <div class="met"><div class="l">OFF or leave</div><div class="v">${focusSummary.off + focusSummary.leave}</div><div class="s">Unavailable on this day</div></div>
+    </div></div>
+    <div class="card"><div class="ch">Week coverage snapshot · ${week.label}</div><div class="grid4">${dayCards.join('')}</div></div>
+    ${renderWeeklyTable(week,weekPlan,true)}
+  `;
+}
+function renderWeekly(week,weekPlan){
+  let alerts='';
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const s=getDaySummary(fmtDate(d),weekPlan); if(s.gap<0){alerts+=`<div class="warn">${d.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}: ${Math.abs(s.gap)} below required staffing.</div>`;}
+  }
+  if(!alerts) alerts='<div class="ok">No staffing risk on the selected week based on the current setup.</div>';
+  return `${alerts}<div class="note">The full roster stays in Dashboard. Use this page only for quick staffing alerts.</div>`;
+}
+function renderWeeklyTable(week,weekPlan,compact){
+  const dayHeaders=[]; 
+  const breakPlans={};
+  for(let i=0;i<7;i++){ 
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); 
+    dayHeaders.push(`<div class="wh">${d.toLocaleDateString('en-GB',{weekday:'short'})}<br>${humanDate(d)}<br><span class="small">Avail ${s.available} · Req ${s.required}</span></div>`);
+    breakPlans[ds]=buildBreakPlanForDate(ds,weekPlan);
+  }
+  let rows='';
+  activeAgents().forEach(agent=>{
+    let cells='';
+    for(let i=0;i<7;i++){
+      const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const p=weekPlan[`${agent.id}|${ds}`];
+      let body='';
+      if(p.status==='WORK'){
+        const shiftInfo=getShiftTimeInfo(agent,ds);
+        const br=breakPlans[ds][agent.id] || getBreaksForAgent(agent,0,ds);
+        body=`<div class="st">${shiftInfo.ramadan?'WORK · RAMADAN':'WORK'}</div><div class="tm">${shiftInfo.label}</div><div class="br">B1 ${br[0]}<br>Lunch ${br[1]}<br>B2 ${br[2]}</div>`;
+      }else if(p.status==='OFF'){
+        body=`<div class="st">OFF</div><div class="tm">${p.reason}</div>`;
+      }else{
+        body=`<div class="st">LEAVE</div><div class="tm">${p.reason||'Leave'}</div>`;
+      }
+      const bg=p.status==='WORK'?'var(--work)':p.status==='LEAVE'?'var(--leave)':(d.getDay()===5?'var(--fixed)':'var(--off)');
+      cells+=`<div class="wc" style="background:${bg}">${body}${compact?'':`<div style="margin-top:8px"><select data-agent="${agent.id}" data-date="${ds}" class="quickStatus"><option value="">Edit</option><option value="WORK">Working</option><option value="OFF">OFF</option><option value="LEAVE">Leave</option><option value="CLEAR">Back to auto</option></select></div>`}</div>`;
+    }
+    rows+=`<div class="wagent"><div class="av">${avatar(agent.name)}</div><div><div style="font-weight:700">${agent.name}</div><div class="small">${agent.lang} · ${agent.shift===1?'Shift 1':'Shift 2'}</div></div></div>${cells}`;
+  });
+  return `<div class="card"><div class="ch">Auto-generated weekly roster · ${week.label}</div><div class="note">The app generates the week automatically. Friday fixed OFF, the extra weekly OFF, leave records, and holiday rules are all applied here for you.</div><div style="overflow:auto"><div class="weekgrid">${['<div></div>',...dayHeaders].join('')}${rows}</div></div></div>`;
+}
+function renderLeave(week,weekPlan){
+  const rows=state.leaves.map((l,i)=>{ const agent=state.agents.find(a=>a.id===l.agentId); return `<tr><td>${agent?agent.name:'Unknown'}</td><td>${l.start}</td><td>${l.end}</td><td><span class="pill p-leave">${l.type}</span></td><td><button class="btn btnr removeLeave" data-index="${i}">Remove</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="small">No leave added yet.</td></tr>';
+  const holidayRows=(state.holidays||[]).map((h,i)=>{ const fixed=getHolidayFixedDates(h); const total=getLeaveDates(0,h.start,h.end).length; const distributed=Math.max(0,total-fixed.length); return `<tr><td>${escapeHtml(h.name||'Holiday')}</td><td>${h.start}</td><td>${h.end}</td><td>${fixed.length}</td><td>${fixed.length?fixed.join('<br>'):'—'}</td><td>${distributed} day(s) over ${Number(h.distributionWeeks)||1} week(s)</td><td><button class="btn btnr removeHoliday" data-index="${i}">Remove</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="small">No holiday rules added yet.</td></tr>';
+  return `
+    <div class="card">
+      <div class="ch">Leave and Holidays</div>
+      <div class="note">Add individual leave here, or create a holiday rule. For holidays, you can set fixed OFF dates and let the remaining days be distributed automatically over 1, 2, or 4 weeks.</div>
+      <div class="leave-grid">
+        <div class="field tight"><label>Agent</label><select id="leaveAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field tight"><label>Start</label><input type="date" id="leaveStart"></div>
+        <div class="field tight"><label>End</label><input type="date" id="leaveEnd"></div>
+        <div class="field tight"><label>Type</label><select id="leaveType"><option>Paid Leave</option><option>Unpaid Leave</option><option>Sick Leave</option><option>Training</option><option>Casual Leave</option></select></div>
+        <button class="btn btnp" id="addLeave">Add leave</button>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Saved leave</div><table class="tbl"><thead><tr><th>Agent</th><th>Start</th><th>End</th><th>Type</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card">
+      <div class="ch">Add holiday rule</div>
+      <div class="note">Example: if the holiday is 5 days and you set 3 fixed OFF dates, the remaining 2 days will be distributed randomly over the selected period based on operational balance.</div>
+      <div class="holiday-grid">
+        <div class="field tight"><label>Holiday name</label><input type="text" id="holidayName" placeholder="Eid, National Day, etc."></div>
+        <div class="field tight"><label>Start</label><input type="date" id="holidayStart"></div>
+        <div class="field tight"><label>End</label><input type="date" id="holidayEnd"></div>
+        <div class="field tight"><label>Fixed OFF days</label><input type="number" id="holidayFixedCount" min="0" value="0"></div>
+        <div class="field tight"><label>Distribution period</label><select id="holidayPeriod"><option value="1">1 week</option><option value="2">2 weeks</option><option value="4">4 weeks</option></select></div>
+        <button class="btn btnp" id="addHoliday">Add holiday</button>
+      </div>
+      <div class="holiday-fixed-grid">
+        <div class="field"><label>Fixed OFF dates</label><input type="text" id="holidayFixedDates" placeholder="2026-04-10, 2026-04-11, 2026-04-12"></div>
+        <div class="small">List the fixed OFF dates separated by commas.</div>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Saved holidays</div><table class="tbl"><thead><tr><th>Holiday</th><th>Start</th><th>End</th><th>Fixed OFF</th><th>Fixed dates</th><th>Distributed</th><th></th></tr></thead><tbody>${holidayRows}</tbody></table></div>
+  `;
+}
+
+function renderBreaks(week,weekPlan){
+  ensureBreakPlannerSettings(state);
+  const meta=state.breakDemandMeta || {source:'', rows:0, days:0, uploadedAt:''};
+  const days=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i);
+    days.push({date:d, key:fmtDate(d)});
+  }
+  const focusDate=syncBreakFocusDate(week);
+  const focusLabel=new Date(focusDate).toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'});
+  const hours=Array.from({length:24},(_,i)=>`${pad(i)}:00`);
+  const displayMinutes=[];
+  for(let h=7; h<20; h++){ for(let q=0; q<60; q+=30){ displayMinutes.push(`${pad(h)}:${pad(q)}`); } }
+  let maxValue=0;
+  days.forEach(day=>{ hours.forEach(hour=>{ maxValue=Math.max(maxValue, Number(state.breakDemand?.[day.key]?.[hour]||0)); }); });
+  const head=['<div></div>', ...days.map(day=>`<div class="heathead">${day.date.toLocaleDateString('en-GB',{weekday:'short'})}<small>${humanDate(day.date)}</small></div>`)].join('');
+  const cells=[];
+  hours.forEach(hour=>{
+    cells.push(`<div class="heatlabel">${hour}</div>`);
+    days.forEach(day=>{
+      const value=Number(state.breakDemand?.[day.key]?.[hour]||0);
+      if(!value){
+        cells.push('<div class="heatcell empty">–</div>');
+      }else{
+        const ratio=maxValue ? value/maxValue : 0;
+        const bg=`rgba(${Math.round(56 + ratio*91)}, ${Math.round(130 - ratio*40)}, ${Math.round(248 - ratio*60)}, ${0.18 + ratio*0.72})`;
+        cells.push(`<div class="heatcell" style="background:${bg}">${value}</div>`);
+      }
+    });
+  });
+  const focusPlans=buildBreakPlanForDate(focusDate,weekPlan);
+  const displayAgents=activeAgents();
+  const workingAgents=displayAgents.filter(agent=>weekPlan[`${agent.id}|${focusDate}`]?.status==='WORK');
+  const firstAgent=workingAgents[0];
+  const firstBreaks=firstAgent ? (focusPlans[firstAgent.id] || getBreaksForAgent(firstAgent,0,focusDate)) : ['10:00-10:15','13:00-13:30','15:30-15:45'];
+  const agentGrid=['<div></div>', ...displayMinutes.map(min=>`<div class="agenthead">${min}</div>`), '<div class="agenthead">Edit</div>'];
+  agentGrid.push('<div class="agentname">Break count</div>');
+  displayMinutes.forEach(min=>{
+    const minute=parseClockMinutes(min);
+    let count=0;
+    workingAgents.forEach(agent=>{
+      const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
+      const ranges=[parseRangeMinutes(breaks[0]),parseRangeMinutes(breaks[1]),parseRangeMinutes(breaks[2])];
+      if(ranges.some(r=>minute>=r.start && minute<r.end)) count++;
+    });
+    agentGrid.push(`<div class="agentslot ${count>0?'break':'off'}">${count}</div>`);
+  });
+  agentGrid.push('<div class="agenteditcell">—</div>');
+  displayAgents.forEach(agent=>{
+    const dayState=weekPlan[`${agent.id}|${focusDate}`];
+    if(!dayState || dayState.status!=='WORK'){
+      agentGrid.push(`<div class="agentname">${agent.name}<small>${dayState?.status||'OFF'}</small></div>`);
+      displayMinutes.forEach(()=>agentGrid.push(`<div class="agentslot off">${dayState?.status==='LEAVE'?'LV':'OFF'}</div>`));
+      agentGrid.push('<div class="agenteditcell">—</div>');
+      return;
+    }
+    const shiftInfo=getShiftTimeInfo(agent,focusDate);
+    const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
+    const ranges={b1:parseRangeMinutes(breaks[0]), lunch:parseRangeMinutes(breaks[1]), b2:parseRangeMinutes(breaks[2]), shift:parseRangeMinutes(shiftInfo.time)};
+    agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name} · B1 ${breaks[0]} · Lunch ${breaks[1]} · B2 ${breaks[2]}</small></div>`);
+    displayMinutes.forEach(min=>{
+      const minute=parseClockMinutes(min);
+      let cls='off', label='';
+      if(minute>=ranges.shift.start && minute<ranges.shift.end){ cls='work'; label='•'; }
+      if(minute>=ranges.b1.start && minute<ranges.b1.end){ cls='break'; label=breaks[0]; }
+      if(minute>=ranges.lunch.start && minute<ranges.lunch.end){ cls='lunch'; label=breaks[1]; }
+      if(minute>=ranges.b2.start && minute<ranges.b2.end){ cls='break'; label=breaks[2]; }
+      agentGrid.push(`<div class="agentslot ${cls}">${label}</div>`);
+    });
+    agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
+  });
+  const uploadState=meta.rows
+    ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}${meta.updatedAt?` · Synced ${escapeHtml(meta.updatedAt)}`:''}</div>`
+    : `<div class="warn">Upload an Excel or CSV interaction file to see the heat map for the selected week.</div>`;
+  return `
+    <div class="card">
+      <div class="ch">Break control · ${week.label}</div>
+      <div class="note">This page shows the interaction heat map and, below it, the day-by-day agent view with the real break times. The interaction file is analyzed each time to place breaks away from peak periods.</div>
+      ${uploadState}
+      <div class="rowflex">
+        <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
+        <button class="btn btnp" id="uploadBreakFile">Upload interaction list</button>
+        <button class="btn" id="clearBreakForecast">Clear uploaded list</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch">Interaction heat map · selected week</div>
+      <div class="heatmap-wrap"><div class="heatgrid">${head}${cells.join('')}</div></div>
+      <div class="legend"><span>Low</span><span class="legend-bar"></span><span>High</span></div>
+    </div>
+    <div class="card">
+      <div class="ch">Agents across the hours · ${focusLabel}</div>
+      <div class="note">Every working agent below has 3 breaks in this fixed order: short break 15 min, lunch 30 min, then short break 15 min.</div>
+      <div class="rowflex" style="margin-bottom:10px">
+        <button class="btn" id="prevBreakDay">← Previous day</button>
+        <button class="btn" id="nextBreakDay">Next day →</button>
+        <div class="small">Choose a day, review the 30-minute layout, and see how many agents are on break at each moment.</div>
+      </div>
+      <div class="agentheat-wrap"><div class="agentheatgrid">${agentGrid.join('')}</div></div>
+    </div>
+    <div class="card">
+      <div class="ch">Edit selected agent breaks</div>
+      <div class="note">Manual edits here always stay in the same flow: first short break 15 min, then lunch 30 min, then second short break 15 min.</div>
+      <div class="rowflex">
+        <input type="hidden" id="editBreakDate" value="${focusDate}">
+        <div class="field"><label>Agent</label><select id="editBreakAgent">${workingAgents.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Break 1 start</label><input type="time" id="editBreak1" value="${formatStartFromRange(firstBreaks[0])}"></div>
+        <div class="field"><label>Lunch start</label><input type="time" id="editBreakLunch" value="${formatStartFromRange(firstBreaks[1])}"></div>
+        <div class="field"><label>Break 2 start</label><input type="time" id="editBreak2" value="${formatStartFromRange(firstBreaks[2])}"></div>
+        <button class="btn btnp" id="saveBreakEdit">Save break timing</button>
+        <button class="btn" id="clearBreakEdit">Clear manual override</button>
+      </div>
+    </div>
+  `;
+}
+
+
+function renderAgentView(week,weekPlan){
+  const agent=getAgentById(agentViewId);
+  if(!agent) return `<div class="card"><div class="bad">Agent link is not valid.</div></div>`;
+  let work=0, off=0, leave=0;
+  const cards=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
+    const plan=weekPlan[`${agent.id}|${ds}`];
+    const shiftInfo=getShiftTimeInfo(agent,ds);
+    const breaks=plan && plan.status==='WORK' ? (buildBreakPlanForDate(ds,weekPlan)[agent.id]||[]) : [];
+    if(plan?.status==='WORK') work++; else if(plan?.status==='OFF') off++; else if(plan?.status==='LEAVE') leave++;
+    cards.push(`<div class="daycard"><h4>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</h4>
+      <div class="kv"><div>Status: <strong>${plan?plan.status:'-'}</strong></div>
+      <div>${plan?.reason||''}</div>
+      ${plan?.status==='WORK'?`<div>Shift: ${shiftInfo.ramadan?'Ramadan · ':''}${shiftInfo.label}</div><div>Break 1: ${breaks[0]||'-'}</div><div>Lunch: ${breaks[1]||'-'}</div><div>Break 2: ${breaks[2]||'-'}</div>`:''}
+      </div></div>`);
+  }
+  return `<div class="grid4">
+    <div class="met"><div class="l">Working days</div><div class="v">${work}</div><div class="s">selected week</div></div>
+    <div class="met"><div class="l">OFF days</div><div class="v">${off}</div><div class="s">includes Friday</div></div>
+    <div class="met"><div class="l">Leave days</div><div class="v">${leave}</div><div class="s">selected week</div></div>
+    <div class="met"><div class="l">Base shift</div><div class="v" style="font-size:18px">${agent.shift===1?'Shift 1':'Shift 2'}</div><div class="s">${shiftLabel[agent.shift]}</div></div>
+  </div>
+  <div class="card"><div class="ch">${agent.name} · weekly schedule</div><div class="note">This view is for the individual agent. Any roster, leave, or break update from the planner reflects here automatically.</div><div class="daycards">${cards.join('')}</div></div>`;
+}
+
+function renderRamadan(){
+  ensureRamadanSettings(state);
+  const r=state.ramadan;
+  const shiftIds=getRamadanShiftIds();
+  const shiftRows=shiftIds.map(id=>{
+    const slot=splitRange(r.times[id]);
+    return `<div class="card" style="margin-top:10px">
+      <div class="rowflex">
+        <div class="field"><label>Shift ${id} name</label><input type="text" class="ramadanName" data-shift="${id}" value="${r.names[id]||`Ramadan Shift ${id}`}"></div>
+        <div class="field"><label>Start</label><input type="time" class="ramadanStartTime" data-shift="${id}" value="${slot.start||'08:00'}"></div>
+        <div class="field"><label>End</label><input type="time" class="ramadanEndTime" data-shift="${id}" value="${slot.end||'14:00'}"></div>
+        ${shiftIds.length>1?`<button class="btn btnr removeRamadanShift" data-shift="${id}">Remove shift</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  const rows=state.agents.map(a=>`<tr>
+    <td>${a.name}</td>
+    <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
+    <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
+    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">${preferredOffOptions(a.preferredOff)}</select></td>
+    <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
+    <td><select data-id="${a.id}" class="ramadanAssign">
+      <option value="auto" ${getRamadanAssignment(a)==='auto'?'selected':''}>Auto from regular shift</option>
+      ${shiftIds.map(id=>`<option value="${id}" ${getRamadanAssignment(a)===String(id)?'selected':''}>${r.names[id]} · ${r.times[id]}</option>`).join('')}
+      <option value="regular" ${getRamadanAssignment(a)==='regular'?'selected':''}>Keep normal timing</option>
+    </select></td>
+  </tr>`).join('');
+  return `
+    <div class="note">Use the same master-data style during Ramadan as well. Preferred extra OFF and status are available here too, and choosing Not specified lets the system pick the extra OFF day automatically based on operational needs.</div>
+    <div class="rowflex">
+      <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
+      <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
+      <div class="field"><label>End date</label><input type="date" id="ramadanEnd" value="${r.end||''}"></div>
+    </div>
+    ${shiftRows}
+    <div class="rowflex" style="margin-top:10px">
+      <button class="btn" id="addRamadanShift">Add another Ramadan shift</button>
+      <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="ch">Ramadan team setup</div>
+      <div class="rowflex" style="margin-bottom:10px">
+        <button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button>
+        <div class="small">Randomly spreads active agents between all Ramadan shifts while balancing Arabic-capable and English-only coverage.</div>
+      </div>
+      ${!r.saved ? `<div class="warn" style="margin-bottom:10px">Save the Ramadan setup after editing the timings above so the latest shift definitions are applied below.</div>` : ''}
+      <table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+  `;
+}
+
+function renderTeam(){
+  const rows=state.agents.map(a=>`<tr><td>${a.name}</td><td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">${a.shift===1?'Shift 1':'Shift 2'}</span></td><td>${a.lang}</td><td>${preferredOffLabel(a.preferredOff)}</td><td>${a.active?'<span class="pill p-work">Active</span>':'<span class="pill p-off">Inactive</span>'}</td></tr>`).join('');
+  const sharedLink=currentAgentLink();
+  return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. If you choose Not specified, the app can assign the extra OFF day automatically based on operational needs.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
+}
+function renderAdmin(){
+  const rows=state.agents.map(a=>`<tr>
+    <td><input value="${a.name}" data-id="${a.id}" data-field="name" class="agentEdit"></td>
+    <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
+    <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
+    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">${preferredOffOptions(a.preferredOff)}</select></td>
+    <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
+  </tr>`).join('');
+  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance, and if Preferred extra OFF is set to Not specified the app will choose the extra OFF day automatically based on the operation.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `
+    <div class="card">
+      <div class="ch">Admin setup</div>
+      <div class="rowflex" style="margin-bottom:12px">
+        <button class="btn ${adminSubTab==='team'?'btnp':''} adminSubTab" data-sub="team">Team master data</button>
+        <button class="btn ${adminSubTab==='ramadan'?'btnp':''} adminSubTab" data-sub="ramadan">Ramadan</button>
+      </div>
+      ${adminSubTab==='team' ? teamHtml : renderRamadan()}
+    </div>
+    <div class="card"><div class="ch">Data control</div><div class="rowflex"><button class="btn" id="exportJson">Export data</button><button class="btn btnr" id="resetAll">Reset all</button></div><div id="exportBox" style="margin-top:12px"></div></div>
+  `;
+}
+function overlapsWeek(l,week){
+  const start=new Date(l.start);
+  let end=new Date(l.end);
+  if(Number(l.distributionWeeks||0)>0){
+    const distributedEnd=new Date(l.start);
+    distributedEnd.setDate(distributedEnd.getDate()+((Number(l.distributionWeeks)||1)*7)-1);
+    if(distributedEnd>end) end=distributedEnd;
+  }
+  return end>=week.start && start<=week.end;
+}
+function setOverride(agentId,date,status){
+  const wk=getSelectedWeek(); const key=weekKey(wk.start); state.weekOverrides[key] ||= {}; const k=`${agentId}|${date}`;
+  if(status==='CLEAR') delete state.weekOverrides[key][k]; else state.weekOverrides[key][k]={status,reason:'Manual edit'};
+  markRosterSyncChange();
+}
+function bindPageActions(){
+  document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); saveState(); render();});
+  document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); markRosterSyncChange(); saveState(); render();});
+  document.querySelectorAll('.removeHoliday').forEach(b=>b.onclick=()=>{ state.holidays ||= []; state.holidays.splice(Number(b.dataset.index),1); markRosterSyncChange(); saveState(); render(); });
+  const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); markRosterSyncChange(); saveState(); render(); };
+  const addHoliday=document.getElementById('addHoliday'); if(addHoliday) addHoliday.onclick=()=>{ const name=(document.getElementById('holidayName').value||'Holiday').trim(); const start=document.getElementById('holidayStart').value; const end=document.getElementById('holidayEnd').value||start; const fixedCount=Math.max(0, Number(document.getElementById('holidayFixedCount').value||0)); const distributionWeeks=Number(document.getElementById('holidayPeriod').value||1); const fixedRaw=document.getElementById('holidayFixedDates').value||''; if(!start) return alert('Please select the holiday start date.'); const span=getLeaveDates(0,start,end); if(!span.length) return alert('Please choose a valid holiday range.'); if(fixedCount>span.length) return alert('Fixed OFF days cannot be greater than the holiday length.'); const fixedDates=[...new Set(fixedRaw.split(/[\s,]+/).map(x=>x.trim()).filter(Boolean))].filter(ds=>span.includes(ds)).slice(0,fixedCount); if(fixedCount && fixedDates.length<fixedCount) return alert('Please enter the fixed OFF dates inside the holiday range.'); state.holidays ||= []; state.holidays.push({name,start,end,fixedDates,distributionWeeks}); markRosterSyncChange(); saveState(); render(); };
+  document.querySelectorAll('.adminSubTab').forEach(el=>el.onclick=()=>{ adminSubTab=el.dataset.sub || 'team'; render(); });
+  const addRamadanShift=document.getElementById('addRamadanShift');
+  if(addRamadanShift) addRamadanShift.onclick=()=>{
+    ensureRamadanSettings(state);
+    const nextId=getNextRamadanShiftId();
+    state.ramadan.names[nextId]=`Ramadan Shift ${nextId}`;
+    state.ramadan.times[nextId]=getSuggestedRamadanTime();
+    state.ramadan.saved=false;
+    markRosterSyncChange();
+    saveState();
+    render();
+  };
+  document.querySelectorAll('.removeRamadanShift').forEach(el=>el.onclick=()=>{
+    ensureRamadanSettings(state);
+    const shiftId=String(el.dataset.shift);
+    const ids=getRamadanShiftIds();
+    if(ids.length<=1) return alert('At least one Ramadan shift is required.');
+    delete state.ramadan.names[shiftId];
+    delete state.ramadan.times[shiftId];
+    Object.keys(state.ramadan.agentAssignments||{}).forEach(agentId=>{ if(state.ramadan.agentAssignments[agentId]===shiftId) delete state.ramadan.agentAssignments[agentId]; });
+    state.ramadan.saved=false;
+    markRosterSyncChange();
+    saveState();
+    render();
+  });
+  document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; markRosterSyncChange(); saveState(); render(); });
+  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; markRosterSyncChange(); saveState(); render(); });
+  const uploadBreakFile=document.getElementById('uploadBreakFile');
+  if(uploadBreakFile) uploadBreakFile.onclick=async ()=>{
+    const input=document.getElementById('breakFile');
+    const file=input?.files?.[0];
+    if(!file) return alert('Please choose the Excel file first.');
+    if(typeof XLSX==='undefined') return alert('The Excel reader is still loading. Please try again.');
+    try{
+      const data=await file.arrayBuffer();
+      const workbook=XLSX.read(data,{type:'array'});
+      const sheet=workbook.Sheets[workbook.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+      importBreakDemandRows(rows,file.name);
+      saveState();
+      render();
+    }catch(err){
+      alert(err.message || 'Could not read the interaction file.');
+    }
+  };
+  const clearBreakForecast=document.getElementById('clearBreakForecast');
+  if(clearBreakForecast) clearBreakForecast.onclick=()=>{
+    state.breakDemand={};
+    state.breakDemandMeta={source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
+    markBreakSyncChange();
+    saveState();
+    render();
+  };
+  const prevBreakDay=document.getElementById('prevBreakDay');
+  if(prevBreakDay) prevBreakDay.onclick=()=>{
+    const week=getSelectedWeek();
+    const dates=[];
+    for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
+    let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
+    state.breakFocusDate=dates[Math.max(0,idx-1)];
+    render();
+  };
+  const nextBreakDay=document.getElementById('nextBreakDay');
+  if(nextBreakDay) nextBreakDay.onclick=()=>{
+    const week=getSelectedWeek();
+    const dates=[];
+    for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
+    let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
+    state.breakFocusDate=dates[Math.min(dates.length-1,idx+1)];
+    render();
+  };
+  function fillBreakEditor(agentId,dateStr,b1,lunch,b2){
+    const agentEl=document.getElementById('editBreakAgent');
+    const dateEl=document.getElementById('editBreakDate');
+    const b1El=document.getElementById('editBreak1');
+    const lunchEl=document.getElementById('editBreakLunch');
+    const b2El=document.getElementById('editBreak2');
+    if(agentEl) agentEl.value=String(agentId);
+    if(dateEl) dateEl.value=dateStr;
+    if(b1El) b1El.value=b1 || '';
+    if(lunchEl) lunchEl.value=lunch || '';
+    if(b2El) b2El.value=b2 || '';
+  }
+  document.querySelectorAll('.editDayBreak').forEach(btn=>btn.onclick=()=>{ fillBreakEditor(btn.dataset.agent, btn.dataset.date, btn.dataset.b1, btn.dataset.lunch, btn.dataset.b2); });
+  const editBreakAgent=document.getElementById('editBreakAgent');
+  if(editBreakAgent) editBreakAgent.onchange=()=>{
+    const dateStr=document.getElementById('editBreakDate').value;
+    const agentId=Number(editBreakAgent.value);
+    const weekPlan=getWeekPlan(getSelectedWeek());
+    const plan=buildBreakPlanForDate(dateStr,weekPlan)[agentId] || ['10:00-10:15','13:00-13:30','15:30-15:45'];
+    fillBreakEditor(agentId,dateStr,formatStartFromRange(plan[0]),formatStartFromRange(plan[1]),formatStartFromRange(plan[2]));
+  };
+  const saveBreakEdit=document.getElementById('saveBreakEdit');
+  if(saveBreakEdit) saveBreakEdit.onclick=()=>{
+    const agentId=Number(document.getElementById('editBreakAgent').value);
+    const dateStr=document.getElementById('editBreakDate').value;
+    const b1=document.getElementById('editBreak1').value;
+    const lunch=document.getElementById('editBreakLunch').value;
+    const b2=document.getElementById('editBreak2').value;
+    if(!agentId || !dateStr || !b1 || !lunch || !b2) return alert('Please complete the break time fields first.');
+    const proposal=makeBreakProposalFromStarts(b1,lunch,b2);
+    const weekPlan=getWeekPlan(getSelectedWeek());
+    const agent=getAgentById(agentId);
+    const dayPlan=weekPlan[`${agentId}|${dateStr}`];
+    if(!agent || !dayPlan || dayPlan.status!=='WORK') return alert('This agent is not working on that date.');
+    const issue=validateBreakProposal(agent,dateStr,proposal,weekPlan);
+    if(issue) return alert(issue);
+    state.breakOverrides[`${agentId}|${dateStr}`]=proposal;
+    markBreakSyncChange();
+    saveState();
+    render();
+  };
+  const clearBreakEdit=document.getElementById('clearBreakEdit');
+  if(clearBreakEdit) clearBreakEdit.onclick=()=>{
+    const agentId=Number(document.getElementById('editBreakAgent').value);
+    const dateStr=document.getElementById('editBreakDate').value;
+    if(!agentId || !dateStr) return;
+    delete state.breakOverrides[`${agentId}|${dateStr}`];
+    markBreakSyncChange();
+    saveState();
+    render();
+  };
+  const saveRamadan=document.getElementById('saveRamadan');
+  if(saveRamadan) saveRamadan.onclick=()=>{
+    ensureRamadanSettings(state);
+    const enabled=document.getElementById('ramadanEnabled').value==='true';
+    const start=document.getElementById('ramadanStart').value || '';
+    const end=document.getElementById('ramadanEnd').value || '';
+    if(enabled && (!start || !end)) return alert('Please choose Ramadan start and end dates.');
+    const newNames={};
+    const newTimes={};
+    document.querySelectorAll('.ramadanName').forEach(el=>{
+      const shiftId=String(el.dataset.shift);
+      const startEl=document.querySelector(`.ramadanStartTime[data-shift="${shiftId}"]`);
+      const endEl=document.querySelector(`.ramadanEndTime[data-shift="${shiftId}"]`);
+      const shiftName=(el.value || `Ramadan Shift ${shiftId}`).trim();
+      const shiftStart=(startEl && startEl.value) || '08:00';
+      const shiftEnd=(endEl && endEl.value) || '14:00';
+      newNames[shiftId]=shiftName;
+      newTimes[shiftId]=`${shiftStart}-${shiftEnd}`;
+    });
+    state.ramadan.enabled=enabled;
+    state.ramadan.start=start;
+    state.ramadan.end=end;
+    state.ramadan.names=newNames;
+    state.ramadan.times=newTimes;
+    state.ramadan.saved=true;
+    markRosterSyncChange();
+    saveState();
+    render();
+  };
+  const autoAssignRamadan=document.getElementById('autoAssignRamadan');
+  if(autoAssignRamadan) autoAssignRamadan.onclick=()=>{
+    const result=autoAssignRamadanByLanguage();
+    const details=Object.keys(result.counters).map(id=>{
+      const slotName=(state.ramadan.names||{})[id] || `Ramadan Shift ${id}`;
+      const c=result.counters[id];
+      return `${slotName}: ${c.total} total (${c.arabic} Arabic-capable, ${c.english} English-only)`;
+    }).join('\n');
+    markRosterSyncChange();
+    saveState();
+    render();
+    alert(`Auto-assigned ${result.updated} active agents for Ramadan.\n${details}`);
+  };
+  const autoShiftBalance=document.getElementById('autoShiftBalance');
+  if(autoShiftBalance) autoShiftBalance.onclick=()=>{
+    const result=autoAssignBalancedShifts();
+    markRosterSyncChange();
+    saveState();
+    render();
+    alert(
+      `Auto-assigned ${result.updated} active agents.\n`+
+      `Shift 1: ${result.counters[1].total} total (${result.counters[1].arabic} Arabic-capable, ${result.counters[1].english} English-only)\n`+
+      `Shift 2: ${result.counters[2].total} total (${result.counters[2].arabic} Arabic-capable, ${result.counters[2].english} English-only)`
+    );
+  };
+  const saveOverride=document.getElementById('saveOverride'); if(saveOverride) saveOverride.onclick=()=>{const agentId=Number(document.getElementById('ovAgent').value); const date=document.getElementById('ovDate').value; const status=document.getElementById('ovStatus').value; if(!date) return alert('Choose date first.'); setOverride(agentId,date,status); saveState(); render();};
+
+  const cloudInput=document.getElementById('cloudMasterKey');
+  if(cloudInput) cloudInput.value=cloudStatus.masterKey || '';
+  const connectCloud=document.getElementById('connectCloud');
+  if(connectCloud) connectCloud.onclick=async ()=>{
+    const key=(document.getElementById('cloudMasterKey').value || '').trim();
+    if(!key) return alert('Paste your JSONBin Master Key first.');
+    cloudStatus.masterKey=key;
+    localStorage.setItem(CLOUD_MASTER_KEY, key);
+    try{
+      if(!cloudStatus.binId){
+        const newBinId=await createCloudBin(key);
+        cloudStatus.binId=newBinId;
+        applyBinToUrl(newBinId);
+      }
+      await saveCloudNow();
+      render();
+    }catch(err){
+      cloudStatus.lastError=err.message || 'Could not connect cloud.';
+      updateCloudBanner();
+      alert(cloudStatus.lastError);
+    }
+  };
+  const loadCloud=document.getElementById('loadCloud');
+  if(loadCloud) loadCloud.onclick=async ()=>{
+    if(!cloudStatus.binId) return alert('Open the admin link that contains ?bin=... or connect cloud first.');
+    try{
+      await loadCloudState(cloudStatus.binId);
+      render();
+    }catch(err){
+      cloudStatus.lastError=err.message || 'Could not load cloud data.';
+      updateCloudBanner();
+      alert(cloudStatus.lastError);
+    }
+  };
+  const exportBtn=document.getElementById('exportJson'); if(exportBtn) exportBtn.onclick=()=>{document.getElementById('exportBox').innerHTML=`<textarea class="exporttxt">${JSON.stringify(state,null,2)}</textarea>`;};
+  const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
+  const moon=document.getElementById('themeMoon'); if(moon) moon.onclick=()=>setTheme('dark');
+  const sun=document.getElementById('themeSun'); if(sun) sun.onclick=()=>setTheme('light');
+  const burgerToggle=document.getElementById('burgerToggle');
+  if(burgerToggle) burgerToggle.onclick=()=>{
+    document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('jaidah_sidebar_collapsed_v1', document.body.classList.contains('sidebar-collapsed') ? 'true' : 'false');
+    syncBurgerIcon();
+  };
+  syncBurgerIcon();
+}
+
+window.addEventListener('storage', e=>{
+  if(e.key===STORAGE_KEY){ state=loadState(); render(); }
+  if(e.key===THEME_KEY){ applyTheme(currentTheme()); }
+});
+window.addEventListener('focus', ()=>{ pullCloudStateIfChanged(); });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pullCloudStateIfChanged(); });
+setInterval(()=>{ pullCloudStateIfChanged(); }, 8000);
+
+document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page; render();});
+document.getElementById('monthPicker').onchange=e=>{state.month=e.target.value; state.selectedWeek=0; render('next');};
+document.getElementById('weekPicker').onchange=e=>{const prev=state.selectedWeek; state.selectedWeek=Number(e.target.value); render(state.selectedWeek<prev?'prev':'next');};
+document.getElementById('prevWeek').onclick=()=>{state.selectedWeek=Math.max(0,state.selectedWeek-1); render('prev');};
+document.getElementById('nextWeek').onclick=()=>{const max=getMonthInfo(state.month).weeks.length-1; state.selectedWeek=Math.min(max,state.selectedWeek+1); render('next');};
+(async function initCloud(){
+  if(BIN_PARAM){
+    try{ await loadCloudState(BIN_PARAM); }catch(err){ cloudStatus.lastError=err.message || 'Could not load cloud data.'; }
+  }
+  render();
+})();
+</script>
 </body>
 </html>
