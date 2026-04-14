@@ -551,6 +551,9 @@ function syncHeader(){
 }
 function renderDashboard(week,weekPlan){
   let totalAvailable=0,totalRequired=0,underDays=0; const dayCards=[];
+  const syncHint = (cloudStatus.binId && !cloudStatus.masterKey)
+    ? `<div class="warn">Cloud link is active, but Master Key is not saved on this browser. Changes here will not sync to agents until you reconnect in Admin tab.</div>`
+    : '';
   const today=new Date();
   const weekEnd=new Date(week.start); weekEnd.setDate(weekEnd.getDate()+6);
   const focusDate=(today>=week.start && today<=weekEnd)? today : new Date(week.start);
@@ -561,6 +564,7 @@ function renderDashboard(week,weekPlan){
   }
   const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length;
   return `
+    ${syncHint}
     <div class="note">This version is simplified around your real workflow: select the week, let the app generate the roster automatically, then only edit exceptions or add leave.</div>
     <div class="grid4">
       <div class="met"><div class="l">Active agents</div><div class="v">${activeAgents().length}</div><div class="s">Friday fixed off for all</div></div>
