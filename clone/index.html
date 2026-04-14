@@ -249,7 +249,8 @@ function loadState(){
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function ensureBreakPlannerSettings(obj){
   obj.breakDemand ||= {};
-  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:''};
+  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
+  obj.breakSyncVersion ||= 0;
   return obj;
 }
 function ensureRamadanSettings(obj){

@@ -303,9 +303,15 @@ function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'
 function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
 function ensureBreakPlannerSettings(obj){
   obj.breakDemand ||= {};
-  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:''};
+  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
   obj.breakFocusDate ||= '';
+  obj.breakSyncVersion ||= 0;
   return obj;
+}
+function markBreakSyncChange(){
+  ensureBreakPlannerSettings(state);
+  state.breakSyncVersion=Date.now();
+  state.breakDemandMeta.updatedAt=new Date().toLocaleString();
 }
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
@@ -711,8 +717,9 @@ function importBreakDemandRows(rows, fileName){
   });
   if(!imported) throw new Error('Use Interactions.csv headers like Date Group - Full Hour and Count - Offered, or Month, Day, Hour and Number of Interaction.');
   state.breakDemand=demand;
-  state.breakDemandMeta={source:fileName, rows:imported, days:Object.keys(demand).length, uploadedAt:new Date().toLocaleString()};
+  state.breakDemandMeta={source:fileName, rows:imported, days:Object.keys(demand).length, uploadedAt:new Date().toLocaleString(), updatedAt:''};
   state.breakOverrides={};
+  markBreakSyncChange();
 }
 function publicState(){ return JSON.parse(JSON.stringify(state)); }
 async function fetchJson(url, opts={}){
@@ -1014,7 +1021,7 @@ function renderBreaks(week,weekPlan){
     agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
   });
   const uploadState=meta.rows
-    ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}</div>`
+    ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}${meta.updatedAt?` · Synced ${escapeHtml(meta.updatedAt)}`:''}</div>`
     : `<div class="warn">Upload an Excel or CSV interaction file to see the heat map for the selected week.</div>`;
   return `
     <div class="card">
@@ -1207,7 +1214,8 @@ function bindPageActions(){
   const clearBreakForecast=document.getElementById('clearBreakForecast');
   if(clearBreakForecast) clearBreakForecast.onclick=()=>{
     state.breakDemand={};
-    state.breakDemandMeta={source:'', rows:0, days:0, uploadedAt:''};
+    state.breakDemandMeta={source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
+    markBreakSyncChange();
     saveState();
     render();
   };
@@ -1266,6 +1274,7 @@ function bindPageActions(){
     const issue=validateBreakProposal(agent,dateStr,proposal,weekPlan);
     if(issue) return alert(issue);
     state.breakOverrides[`${agentId}|${dateStr}`]=proposal;
+    markBreakSyncChange();
     saveState();
     render();
   };
@@ -1275,6 +1284,7 @@ function bindPageActions(){
     const dateStr=document.getElementById('editBreakDate').value;
     if(!agentId || !dateStr) return;
     delete state.breakOverrides[`${agentId}|${dateStr}`];
+    markBreakSyncChange();
     saveState();
     render();
   };
