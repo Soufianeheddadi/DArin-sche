@@ -30,8 +30,9 @@ body.sidebar-collapsed .nb{padding:11px 8px;display:flex;justify-content:center}
 .top{background:rgba(15,23,42,.58);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;backdrop-filter:blur(12px);position:sticky;top:0;z-index:30}
 .top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
 .controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;width:100%;justify-content:flex-end}
-.burger{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid rgba(148,163,184,.36);background:rgba(30,41,59,.6);color:#dbeafe;border-radius:10px;cursor:pointer;transition:all .2s ease}
-.burger:hover{background:rgba(59,130,246,.24)}
+.burger{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:transparent;color:inherit;border-radius:8px;cursor:pointer;transition:all .2s ease;box-shadow:none;padding:0;margin:0}
+.burger:hover{background:rgba(59,130,246,.16)}
+body.light-theme .burger{color:#0f172a}
 .theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px);margin-left:auto}
 .theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#facc15,#fb923c);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
 .theme-toggle.light .thumb{transform:translateX(0);background:linear-gradient(120deg,#facc15,#fb923c)}
@@ -164,7 +165,7 @@ body.light-theme .heatcell{color:#0f172a}
   </aside>
   <main class="main">
     <div class="top">
-      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
         <button class="burger" id="burgerToggle" aria-label="Toggle menu">☰</button>
         <div>
           <h1 id="pageTitle">Dashboard</h1>
