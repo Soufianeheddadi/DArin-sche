@@ -964,14 +964,15 @@ function renderBreaks(week,weekPlan){
     const shiftInfo=getShiftTimeInfo(agent,focusDate);
     const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
     const ranges={b1:parseRangeMinutes(breaks[0]), lunch:parseRangeMinutes(breaks[1]), b2:parseRangeMinutes(breaks[2]), shift:parseRangeMinutes(shiftInfo.time)};
-    agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name}</small></div>`);
+    agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name} · B1 ${breaks[0]} · Lunch ${breaks[1]} · B2 ${breaks[2]}</small></div>`);
     displayHours.forEach(hour=>{
       const minute=parseClockMinutes(hour);
+      const slot={start:minute,end:minute+60};
       let cls='off', label='';
-      if(minute>=ranges.shift.start && minute<ranges.shift.end){ cls='work'; label='W'; }
-      if(minute>=ranges.b1.start && minute<ranges.b1.end){ cls='break'; label='B1'; }
-      if(minute>=ranges.lunch.start && minute<ranges.lunch.end){ cls='lunch'; label='L'; }
-      if(minute>=ranges.b2.start && minute<ranges.b2.end){ cls='break'; label='B2'; }
+      if(overlapsRange(slot,ranges.shift)){ cls='work'; label='W'; }
+      if(overlapsRange(slot,ranges.b1)){ cls='break'; label='B1'; }
+      if(overlapsRange(slot,ranges.lunch)){ cls='lunch'; label='L'; }
+      if(overlapsRange(slot,ranges.b2)){ cls='break'; label='B2'; }
       agentGrid.push(`<div class="agentslot ${cls}">${label}</div>`);
     });
     agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
@@ -997,6 +998,7 @@ function renderBreaks(week,weekPlan){
     </div>
     <div class="card">
       <div class="ch">Agents across the hours · ${focusLabel}</div>
+      <div class="note">Every working agent below has 3 breaks in this fixed order: short break 15 min, lunch 30 min, then short break 15 min.</div>
       <div class="rowflex" style="margin-bottom:10px">
         <button class="btn" id="prevBreakDay">← Previous day</button>
         <button class="btn" id="nextBreakDay">Next day →</button>
@@ -1006,7 +1008,7 @@ function renderBreaks(week,weekPlan){
     </div>
     <div class="card">
       <div class="ch">Edit selected agent breaks</div>
-      <div class="note">Manual edits here stay in the same flow: 15 min break, 30 min lunch, then 15 min break.</div>
+      <div class="note">Manual edits here always stay in the same flow: first short break 15 min, then lunch 30 min, then second short break 15 min.</div>
       <div class="rowflex">
         <input type="hidden" id="editBreakDate" value="${focusDate}">
         <div class="field"><label>Agent</label><select id="editBreakAgent">${workingAgents.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
