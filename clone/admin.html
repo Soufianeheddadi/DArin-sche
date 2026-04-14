@@ -113,6 +113,16 @@ body.agent-mode .top h1{margin-bottom:0}
 .daycard:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.38)}
 .daycard h4{font-size:13px;margin-bottom:8px}
 .kv{font-size:12px;color:#d1d5db;line-height:1.6}
+.heatmap-wrap{overflow:auto}
+.heatgrid{display:grid;grid-template-columns:80px repeat(7,minmax(88px,1fr));gap:6px;min-width:760px}
+.heathead,.heatlabel,.heatcell{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.heathead,.heatlabel{background:var(--card);font-weight:700}
+.heathead small,.heatlabel small{display:block;color:var(--muted);font-weight:400}
+.heatcell{min-height:52px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#eef6ff}
+body.light-theme .heatcell{color:#0f172a}
+.heatcell.empty{background:rgba(148,163,184,.12);color:var(--muted)}
+.legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-bar{height:10px;width:140px;border-radius:999px;background:linear-gradient(90deg,rgba(56,189,248,.18),rgba(59,130,246,.45),rgba(147,51,234,.75))}
 
 </style>
 </head>
@@ -871,34 +881,36 @@ function renderLeave(week,weekPlan){
 function renderBreaks(week,weekPlan){
   ensureBreakPlannerSettings(state);
   const meta=state.breakDemandMeta || {source:'', rows:0, days:0, uploadedAt:''};
-  const rows=[];
+  const days=[];
   for(let i=0;i<7;i++){
-    const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
-    const plans=buildBreakPlanForDate(ds,weekPlan);
-    const mode=getBreakDemandForDate(ds) ? '<span class="pill p-work">Peak based</span>' : '<span class="pill p-fixed">Default pattern</span>';
-    activeAgents().forEach(agent=>{
-      const p=weekPlan[`${agent.id}|${ds}`];
-      if(!p || p.status!=='WORK') return;
-      const br=plans[agent.id] || getBreaksForAgent(agent,0,ds);
-      rows.push(`<tr>
-        <td>${agent.name}</td>
-        <td>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</td>
-        <td><span class="pill ${getShiftTimeInfo(agent,ds).shift===1?'p-sh1':'p-sh2'}">${getShiftTimeInfo(agent,ds).name}</span></td>
-        <td>${br[0]}</td>
-        <td>${br[1]}</td>
-        <td>${br[2]}</td>
-        <td>${mode}</td>
-      </tr>`);
-    });
+    const d=new Date(week.start); d.setDate(d.getDate()+i);
+    days.push({date:d, key:fmtDate(d)});
   }
-  const rowsHtml=rows.join('') || '<tr><td colspan="7" class="small">No working agents in this week.</td></tr>';
+  const hours=Array.from({length:24},(_,i)=>`${pad(i)}:00`);
+  let maxValue=0;
+  days.forEach(day=>{ hours.forEach(hour=>{ maxValue=Math.max(maxValue, Number(state.breakDemand?.[day.key]?.[hour]||0)); }); });
+  const head=['<div></div>', ...days.map(day=>`<div class="heathead">${day.date.toLocaleDateString('en-GB',{weekday:'short'})}<small>${humanDate(day.date)}</small></div>`)].join('');
+  const cells=[];
+  hours.forEach(hour=>{
+    cells.push(`<div class="heatlabel">${hour}</div>`);
+    days.forEach(day=>{
+      const value=Number(state.breakDemand?.[day.key]?.[hour]||0);
+      if(!value){
+        cells.push('<div class="heatcell empty">–</div>');
+      }else{
+        const ratio=maxValue ? value/maxValue : 0;
+        const bg=`rgba(${Math.round(56 + ratio*91)}, ${Math.round(130 - ratio*40)}, ${Math.round(248 - ratio*60)}, ${0.18 + ratio*0.72})`;
+        cells.push(`<div class="heatcell" style="background:${bg}">${value}</div>`);
+      }
+    });
+  });
   const uploadState=meta.rows
     ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}</div>`
-    : `<div class="warn">Upload an Excel file with Month, Day, Hour and Number of Interaction. The planner will then place breaks away from the busiest hours.</div>`;
+    : `<div class="warn">Upload an Excel or CSV interaction file to see the heat map for the selected week.</div>`;
   return `
     <div class="card">
       <div class="ch">Break control · ${week.label}</div>
-      <div class="note">Upload your hourly interaction file and the planner will distribute breaks for each working day using this fixed order: short break 15 min, lunch 30 min, then short break 15 min. Your Interactions.csv format with Date Group - Full Hour and Count - Offered is supported.</div>
+      <div class="note">This page now shows only the interaction heat map for the selected week. Breaks still follow the same order in the planner: 15 minutes, then 30 minutes lunch, then 15 minutes.</div>
       ${uploadState}
       <div class="rowflex">
         <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
@@ -906,7 +918,11 @@ function renderBreaks(week,weekPlan){
         <button class="btn" id="clearBreakForecast">Clear uploaded list</button>
       </div>
     </div>
-    <div class="card"><div class="ch">Generated breaks for the selected week</div><table class="tbl"><thead><tr><th>Agent</th><th>Date</th><th>Shift</th><th>Break 1</th><th>Lunch</th><th>Break 2</th><th>Mode</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <div class="card">
+      <div class="ch">Interaction heat map · selected week</div>
+      <div class="heatmap-wrap"><div class="heatgrid">${head}${cells.join('')}</div></div>
+      <div class="legend"><span>Low</span><span class="legend-bar"></span><span>High</span></div>
+    </div>
   `;
 }
 
