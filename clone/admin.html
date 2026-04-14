@@ -263,6 +263,12 @@ function toggleTheme(){
 }
 applyTheme(currentTheme());
 if(localStorage.getItem('jaidah_sidebar_collapsed_v1')==='true') document.body.classList.add('sidebar-collapsed');
+function syncBurgerIcon(){
+  const burger=document.getElementById('burgerToggle');
+  if(!burger) return;
+  const collapsed=document.body.classList.contains('sidebar-collapsed');
+  burger.textContent = collapsed ? '☰' : '✕';
+}
 
 function loadState(){
   try{
@@ -1366,7 +1372,9 @@ function bindPageActions(){
   if(burgerToggle) burgerToggle.onclick=()=>{
     document.body.classList.toggle('sidebar-collapsed');
     localStorage.setItem('jaidah_sidebar_collapsed_v1', document.body.classList.contains('sidebar-collapsed') ? 'true' : 'false');
+    syncBurgerIcon();
   };
+  syncBurgerIcon();
 }
 
 window.addEventListener('storage', e=>{
