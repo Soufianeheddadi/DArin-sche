@@ -66,11 +66,22 @@ button,input,select,textarea{font:inherit}
 .small{font-size:11px;color:var(--muted)}
 .exporttxt{width:100%;height:200px;border:1px solid rgba(148,163,184,.38);border-radius:10px;padding:10px;background:rgba(15,23,42,.72);color:#dbeafe;resize:vertical}
 .exporttxt:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18)}
-body.light-theme .field input,body.light-theme .field select,body.light-theme .field textarea,body.light-theme .agentEdit,body.light-theme .exporttxt{background:rgba(255,255,255,.82);color:#0f172a;border-color:rgba(100,116,139,.35)}
+body.light-theme .field input,body.light-theme .field select,body.light-theme .field textarea,body.light-theme .agentEdit,body.light-theme .exporttxt{background:rgba(255,255,255,.88);color:#0f172a;border-color:rgba(100,116,139,.35)}
 body.light-theme .field input:focus,body.light-theme .field select:focus,body.light-theme .field textarea:focus,body.light-theme .agentEdit:focus,body.light-theme .exporttxt:focus{background:#fff}
 body.light-theme .field select option,body.light-theme .agentEdit option{background:#fff;color:#0f172a}
 body.light-theme .field input[type="date"],body.light-theme .field input[type="month"],body.light-theme .field input[type="password"]{color-scheme:light}
-body.light-theme .btn{background:rgba(255,255,255,.8);color:#0f172a}
+body.light-theme .btn{background:rgba(255,255,255,.82);color:#0f172a}
+body.light-theme .note{background:rgba(219,234,254,.9);border-color:rgba(96,165,250,.35);color:#1e3a8a}
+body.light-theme .ok{background:rgba(220,252,231,.95);border-color:rgba(74,222,128,.35);color:#166534}
+body.light-theme .warn{background:rgba(254,249,195,.96);border-color:rgba(251,191,36,.35);color:#92400e}
+body.light-theme .bad{background:rgba(254,226,226,.96);border-color:rgba(248,113,113,.35);color:#991b1b}
+body.light-theme .wc .br,body.light-theme .kv{color:#1f2937}
+body.light-theme .p-work{background:#dcfce7;color:#166534;border-color:#86efac}
+body.light-theme .p-fixed{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+body.light-theme .p-off{background:#e2e8f0;color:#334155;border-color:#cbd5e1}
+body.light-theme .p-leave{background:#ffedd5;color:#9a3412;border-color:#fdba74}
+body.light-theme .p-sh1{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+body.light-theme .p-sh2{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
 @media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.layout{display:block}.side{width:100%}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
@@ -746,6 +757,11 @@ function bindPageActions(){
   const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
   const themeToggle=document.getElementById('themeToggle'); if(themeToggle) themeToggle.onclick=()=>toggleTheme();
 }
+
+window.addEventListener('storage', e=>{
+  if(e.key===STORAGE_KEY){ state=loadState(); render(); }
+  if(e.key===THEME_KEY){ applyTheme(currentTheme()); }
+});
 
 document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page; render();});
 document.getElementById('monthPicker').onchange=e=>{state.month=e.target.value; state.selectedWeek=0; render('next');};

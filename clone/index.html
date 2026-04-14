@@ -79,14 +79,23 @@ body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--lin
 body.light-theme .topbar{background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.72))}
 body.light-theme .topbar .ttl{color:#334155}
 body.light-theme .themebtn{color:#0f172a;background:rgba(255,255,255,.75);border-color:rgba(100,116,139,.3)}
-body.light-theme .header{background:linear-gradient(135deg,rgba(255,255,255,.85),rgba(219,234,254,.75));color:#0f172a}
+body.light-theme .header{background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(219,234,254,.78));color:#0f172a}
 body.light-theme .header .sub{color:#475569}
-body.light-theme .pbox{background:linear-gradient(140deg,rgba(255,255,255,.9),rgba(241,245,249,.82));border-color:rgba(100,116,139,.24)}
-body.light-theme .pbox select,body.light-theme .wnav select{background:rgba(255,255,255,.84);color:#0f172a;border-color:rgba(100,116,139,.34)}
+body.light-theme .agbadge{color:#1d4ed8}
+body.light-theme .chgbtn{color:#0f172a;background:rgba(255,255,255,.78);border-color:rgba(100,116,139,.32)}
+body.light-theme .pbox{background:linear-gradient(140deg,rgba(255,255,255,.93),rgba(241,245,249,.86));border-color:rgba(100,116,139,.24)}
+body.light-theme .adminbtn{color:#083344;background:linear-gradient(120deg,#a5f3fc,#67e8f9);border-color:rgba(8,145,178,.28)}
+body.light-theme .phint{background:rgba(219,234,254,.82);border-color:rgba(96,165,250,.36);color:#1e3a8a}
+body.light-theme .pbox select,body.light-theme .wnav select{background:rgba(255,255,255,.9);color:#0f172a;border-color:rgba(100,116,139,.34)}
 body.light-theme .pbox select option,body.light-theme .wnav select option{background:#fff;color:#0f172a}
 body.light-theme .pbox input:focus,body.light-theme .pbox select:focus,body.light-theme .pbox textarea:focus,body.light-theme .wnav select:focus{background:#fff}
+body.light-theme .wnav span{color:#0f172a}
 body.light-theme .met,body.light-theme .dc,body.light-theme .card{box-shadow:none}
 body.light-theme .brkrow{color:#1f2937}
+body.light-theme .p-work{background:#dcfce7;color:#166534;border-color:#86efac}
+body.light-theme .p-off{background:#e2e8f0;color:#334155;border-color:#cbd5e1}
+body.light-theme .p-leave{background:#ffedd5;color:#9a3412;border-color:#fdba74}
+body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 @media(max-width:800px){.gateway{grid-template-columns:1fr}}
 @media(max-width:600px){.mets{grid-template-columns:repeat(2,1fr)}.days{grid-template-columns:1fr 1fr}}
 </style>
@@ -164,6 +173,8 @@ const defaultAgents=[
 ];
 const STORAGE_KEY='jaidah_roster_v18';
 const THEME_KEY='jaidah_theme_v1';
+const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
+let cloudSyncBusy=false;
 
 const breakTemplates={
 1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
@@ -316,10 +327,19 @@ function syncAdminEntryLink(){
   link.href = 'admin.html' + q;
 }
 
-function init(){
-  applyTheme(currentTheme());
-  syncAdminEntryLink();
+async function fetchCloudState(binId){
+  var res = await fetch('https://api.jsonbin.io/v3/b/' + binId + '/latest', {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
+  var data = null;
+  try{ data = await res.json(); }catch(e){}
+  if(!res.ok || !data || !data.agents) throw new Error('Cloud sync failed');
+  return data;
+}
+
+function rebuildAgentSelect(){
   var sel = document.getElementById('agSel');
+  if(!sel) return;
+  var current = String(sel.value || curAgent || '');
+  sel.innerHTML = '<option value="">-- Select your name --</option>';
   var agents = st.agents.filter(function(a){ return a.active; });
   agents.forEach(function(a){
     var o = document.createElement('option');
@@ -327,13 +347,52 @@ function init(){
     o.textContent = a.name + ' (Shift ' + a.shift + ' - ' + (a.shift===1?'08:00-17:30':'09:30-19:00') + ')';
     sel.appendChild(o);
   });
+  if(current && sel.querySelector('option[value="' + current + '"]')) sel.value = current;
+}
+
+async function refreshSharedState(forceDraw){
+  if(BIN_PARAM && !cloudSyncBusy){
+    cloudSyncBusy = true;
+    try{
+      var remote = await fetchCloudState(BIN_PARAM);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+    }catch(e){}
+    cloudSyncBusy = false;
+  }
+  st = loadState();
+  state = st;
+  rebuildAgentSelect();
+  if(forceDraw && curAgent){
+    var agent = st.agents.find(function(a){ return a.id===curAgent && a.active; });
+    if(agent){
+      document.getElementById('agBadge').textContent = agent.name;
+      draw();
+    } else {
+      goBack();
+    }
+  }
+}
+
+window.addEventListener('storage', function(e){
+  if(e.key===STORAGE_KEY) refreshSharedState(!!curAgent);
+  if(e.key===THEME_KEY) applyTheme(currentTheme());
+});
+
+function init(){
+  applyTheme(currentTheme());
+  syncAdminEntryLink();
+  rebuildAgentSelect();
+  refreshSharedState(false);
 }
 
 function goAgent(){
+  st = loadState();
+  state = st;
   var id = Number(document.getElementById('agSel').value);
   if(!id){ alert('Please select your name.'); return; }
   curAgent = id;
   var a = st.agents.find(function(x){ return x.id===id; });
+  if(!a){ alert('This agent is not available yet.'); return; }
   document.getElementById('agBadge').textContent = a.name;
   document.getElementById('pickerDiv').style.display = 'none';
   document.getElementById('appDiv').style.display = 'block';
@@ -476,7 +535,7 @@ function draw(dir){
   if(dir){ playWeekTransition(dir); }
 }
 
-setInterval(function(){ if(curAgent){ st=loadState(); draw(); } },60000);
+setInterval(function(){ refreshSharedState(!!curAgent); },8000);
 init();
 </script>
 </body>
