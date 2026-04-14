@@ -1,24 +1,142 @@
 # DArin-sche
 
-## What is this website?
+## Overview
 
-This is a roster planner for a CX team. It helps plan weekly coverage, manage leave and holidays, assign shifts (including Ramadan shifts), and place breaks based on interaction demand. It also provides an agent-facing view of personal schedules.
+DArin-sche is a web-based workforce scheduling and roster planning tool built for a Customer Experience team. It is designed to help planners manage weekly staffing, employee leave, holidays, Ramadan shift adjustments, and demand-based break planning from one place.
 
-## Main functions
+The website also includes a separate agent-facing view so each team member can open the portal and check their own schedule, shift hours, OFF days, leave days, and break times.
 
-- **Dashboard**: Weekly coverage summary, staffing gaps, and daily snapshot.
-- **Weekly planner**: Auto-generated roster with quick status overrides.
-- **Leave and Holidays**: Add individual leave, define holiday rules with fixed and distributed OFF days.
-- **Break control**: Upload Excel/CSV interaction data to build demand-aware breaks, view heat map, and edit daily breaks.
-- **Team setup**: Manage agent master data (shift, language, preferred extra OFF, status).
-- **Ramadan**: Configure Ramadan shifts, assign agents, and apply Ramadan timings.
-- **Agent view**: Each agent can view their own weekly schedule and breaks.
-- **Cloud sync**: Optional JSONBin sync to share data across devices and pages.
+## What the website is used for
 
-## Live website
+This website is used to:
 
-- Main site: [https://soufianeheddadi.github.io/DArin-sche/](https://soufianeheddadi.github.io/DArin-sche/)
-- Main site with data: [https://soufianeheddadi.github.io/DArin-sche/?bin=69dcda4aaaba882197f3a327](https://soufianeheddadi.github.io/DArin-sche/?bin=69dcda4aaaba882197f3a327)
-- Admin page: [https://soufianeheddadi.github.io/DArin-sche/admin.html?bin=69dcda4aaaba882197f3a327](https://soufianeheddadi.github.io/DArin-sche/admin.html?bin=69dcda4aaaba882197f3a327)
+- build and review the weekly roster
+- balance staffing coverage by day
+- manage leave and holiday rules
+- configure special Ramadan schedules
+- assign and adjust shift patterns
+- generate break plans based on demand and interaction volume
+- share the latest schedule with agents through the agent portal
 
-> The GitHub repository page shows the code and README. The live website opens from the GitHub Pages links above.
+## Main features and characteristics
+
+### 1. Dashboard
+The dashboard gives a quick operational view of the selected week.
+
+It shows:
+- total active agents
+- weekly coverage levels
+- under-covered days
+- leave and holiday impact
+- a day-by-day staffing snapshot
+
+### 2. Weekly planner
+The weekly planner automatically builds the roster for the selected week.
+
+Main characteristics:
+- Friday is treated as a fixed OFF day
+- one additional OFF day can be assigned automatically
+- manual overrides can still be applied when needed
+- staffing levels are shown for each day
+
+### 3. Leave and Holidays
+This section allows you to manage both normal leave and holiday-based OFF rules.
+
+Functions available:
+- add individual leave records
+- set leave type and date range
+- create holiday periods
+- define how many days are fixed OFF
+- choose the exact fixed OFF dates
+- distribute the remaining OFF days over a selected period such as 1, 2, or 4 weeks
+
+### 4. Break control
+The break control page helps you plan breaks according to workload.
+
+Functions available:
+- upload Excel or CSV interaction data
+- generate a demand heat map
+- place breaks away from peak interaction periods
+- edit breaks manually for each agent and day
+- keep all break changes synced with the rest of the system
+
+### 5. Team setup
+This is the team master data section.
+
+You can manage:
+- agent names
+- language skills
+- main shift assignment
+- preferred extra OFF day
+- active or inactive status
+
+If preferred extra OFF is set to **Not specified**, the app can assign the extra OFF day automatically depending on operational needs.
+
+### 6. Ramadan configuration
+The Ramadan section allows special shift planning during Ramadan.
+
+You can:
+- enable or disable Ramadan mode
+- choose Ramadan start and end dates
+- create one or more Ramadan shifts
+- set start and end hours for those shifts
+- assign agents automatically or manually
+- keep the same master-data style as the main team setup
+
+### 7. Agent portal
+The website includes an agent-facing page where employees can select their name and view their schedule.
+
+Agents can see:
+- working days
+- OFF days
+- leave days
+- Ramadan shifts when active
+- break and lunch times
+
+### 8. Sync and shared data
+The app is designed so updates reflect across the planner and the agent view.
+
+This includes:
+- local browser storage sync
+- automatic refresh when data changes
+- optional JSONBin cloud sync for shared access across devices
+
+## How to use the website
+
+### Step 1: Open the admin page
+Use the admin dashboard to manage the full schedule and configuration.
+
+### Step 2: Set up the team
+Go to the Team Setup section and confirm:
+- agent names
+- shifts
+- languages
+- preferred extra OFF settings
+- status
+
+### Step 3: Select the month and week
+Use the month and week selectors at the top of the page to move through the schedule.
+
+### Step 4: Add leave and holidays
+Use the Leave and Holidays section to add:
+- personal leave
+- holiday periods
+- fixed OFF dates
+- distributed holiday OFF rules
+
+### Step 5: Configure Ramadan if needed
+If Ramadan scheduling is active, go to the Ramadan section and define the temporary shifts and assignments.
+
+### Step 6: Upload interactions for break planning
+In Break Control, upload the interactions file so the app can suggest better break timings based on demand.
+
+### Step 7: Share the agent portal
+Once the planning is ready, use the agent-facing link so team members can open the website and view their own schedules.
+
+## Website links
+
+- Public website: [https://soufianeheddadi.github.io/DArin-sche/](https://soufianeheddadi.github.io/DArin-sche/)
+- Agent view with shared data: [https://soufianeheddadi.github.io/DArin-sche/?bin=69dcda4aaaba882197f3a327](https://soufianeheddadi.github.io/DArin-sche/?bin=69dcda4aaaba882197f3a327)
+- Admin dashboard with shared data: [https://soufianeheddadi.github.io/DArin-sche/admin.html?bin=69dcda4aaaba882197f3a327](https://soufianeheddadi.github.io/DArin-sche/admin.html?bin=69dcda4aaaba882197f3a327)
+
+> Use the public website link for the landing page, the agent link for employee access, and the admin link for planning and configuration.
