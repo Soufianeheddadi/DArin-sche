@@ -15,6 +15,10 @@ body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--lin
 .pbox select option,.wnav select option{background:#0f172a;color:#dbeafe}
 .topbar{position:sticky;top:0;z-index:20;padding:10px 14px;background:linear-gradient(135deg,rgba(15,23,42,.65),rgba(30,41,59,.45));border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;backdrop-filter:blur(12px)}
 .topbar .ttl{font-size:12px;color:#cbd5e1;font-weight:700;letter-spacing:.04em}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.sync-badge{font-size:10px;padding:3px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);color:#cbd5e1;background:rgba(15,23,42,.5)}
+.sync-badge.on{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(21,128,61,.22)}
+.sync-badge.off{color:#fecaca;border-color:rgba(248,113,113,.45);background:rgba(153,27,27,.22)}
 .theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px);margin-left:auto}
 .theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#facc15,#fb923c);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
 .theme-toggle.light .thumb{transform:translateX(0);background:linear-gradient(120deg,#facc15,#fb923c)}
@@ -83,6 +87,9 @@ body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--lin
 @keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
 body.light-theme .topbar{background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.72))}
 body.light-theme .topbar .ttl{color:#334155}
+body.light-theme .sync-badge{color:#334155;background:rgba(255,255,255,.9);border-color:rgba(100,116,139,.3)}
+body.light-theme .sync-badge.on{color:#166534;background:#dcfce7;border-color:#86efac}
+body.light-theme .sync-badge.off{color:#991b1b;background:#fee2e2;border-color:#fca5a5}
 body.light-theme .theme-toggle{background:rgba(255,255,255,.8);border-color:rgba(100,116,139,.25)}
 body.light-theme .theme-toggle button{color:#475569}
 body.light-theme .theme-toggle button.active{color:#0f172a}
@@ -107,6 +114,7 @@ body.light-theme .p-work{background:#dcfce7;color:#166534;border-color:#86efac}
 body.light-theme .p-off{background:#e2e8f0;color:#334155;border-color:#cbd5e1}
 body.light-theme .p-leave{background:#ffedd5;color:#9a3412;border-color:#fdba74}
 body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:800px){.gateway{grid-template-columns:1fr}}
 @media(max-width:600px){.mets{grid-template-columns:repeat(2,1fr)}.days{grid-template-columns:1fr 1fr}}
 </style>
@@ -114,7 +122,10 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 <body>
 
 <div class="topbar">
-  <span class="ttl">JAIDAH CX SCHEDULER</span>
+  <div class="topbar-left">
+    <span class="ttl">JAIDAH CX SCHEDULER</span>
+    <span class="sync-badge off" id="syncBadge">Sync off</span>
+  </div>
   <div class="theme-toggle" id="themeToggleGlobal">
     <div class="thumb"></div>
     <button type="button" id="themeSunGlobal" onclick="setTheme('light')" aria-label="Light mode">☀</button>
@@ -331,8 +342,14 @@ function syncThemeButtons(theme){
       wrap.classList.toggle('light', theme==='light');
       wrap.classList.toggle('dark', theme==='dark');
     }
-    if(moon) moon.classList.toggle('active', theme==='dark');
-    if(sun) sun.classList.toggle('active', theme==='light');
+    if(moon){
+      moon.classList.toggle('active', theme==='dark');
+      moon.setAttribute('aria-pressed', theme==='dark' ? 'true' : 'false');
+    }
+    if(sun){
+      sun.classList.toggle('active', theme==='light');
+      sun.setAttribute('aria-pressed', theme==='light' ? 'true' : 'false');
+    }
   });
 }
 function applyTheme(theme){
@@ -353,6 +370,15 @@ function syncAdminEntryLink(){
   if(!link) return;
   var q = window.location.search || '';
   link.href = 'admin.html' + q;
+}
+
+function updateSyncBadge(isOn){
+  var el = document.getElementById('syncBadge');
+  if(!el) return;
+  var enabled = !!(BIN_PARAM && isOn);
+  el.classList.toggle('on', enabled);
+  el.classList.toggle('off', !enabled);
+  el.textContent = enabled ? 'Sync on' : 'Sync off';
 }
 
 async function fetchCloudState(binId){
@@ -384,8 +410,11 @@ async function refreshSharedState(forceDraw){
     try{
       var remote = await fetchCloudState(BIN_PARAM);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+      updateSyncBadge(true);
     }catch(e){}
     cloudSyncBusy = false;
+  } else if(!BIN_PARAM) {
+    updateSyncBadge(false);
   }
   st = loadState();
   state = st;
@@ -412,6 +441,7 @@ function init(){
   applyTheme(currentTheme());
   syncAdminEntryLink();
   rebuildAgentSelect();
+  updateSyncBadge(!!BIN_PARAM);
   refreshSharedState(false);
 }
 

@@ -100,6 +100,7 @@ body.light-theme .p-leave{background:#ffedd5;color:#9a3412;border-color:#fdba74}
 body.light-theme .p-sh1{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 body.light-theme .p-sh2{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.layout{display:block}.side{width:100%}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
 
@@ -203,8 +204,14 @@ function applyTheme(theme){
     wrap.classList.toggle('light', theme==='light');
     wrap.classList.toggle('dark', theme==='dark');
   }
-  if(moon) moon.classList.toggle('active', theme==='dark');
-  if(sun) sun.classList.toggle('active', theme==='light');
+  if(moon){
+    moon.classList.toggle('active', theme==='dark');
+    moon.setAttribute('aria-pressed', theme==='dark' ? 'true' : 'false');
+  }
+  if(sun){
+    sun.classList.toggle('active', theme==='light');
+    sun.setAttribute('aria-pressed', theme==='light' ? 'true' : 'false');
+  }
 }
 function setTheme(theme){
   localStorage.setItem(THEME_KEY,theme);
