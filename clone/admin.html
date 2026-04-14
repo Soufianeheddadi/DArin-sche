@@ -152,6 +152,7 @@ body.agent-mode .top h1{margin-bottom:0}
     <div class="pg" id="app"></div>
   </main>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const STORAGE_KEY='jaidah_roster_v26';
 const CLOUD_MASTER_KEY='jaidah_cloud_master_key_v26';
@@ -236,11 +237,12 @@ function loadState(){
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
       parsed.breakOverrides ||= {};
+      ensureBreakPlannerSettings(parsed);
       ensureRamadanSettings(parsed);
       return parsed;
     }
   }catch(e){}
-  return ensureRamadanSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0});
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
@@ -255,6 +257,11 @@ function pad(n){return String(n).padStart(2,'0');}
 function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
 function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
+function ensureBreakPlannerSettings(obj){
+  obj.breakDemand ||= {};
+  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:''};
+  return obj;
+}
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
   obj.ramadan.names ||= {};
@@ -483,38 +490,137 @@ function countBreakConflicts(dateStr, weekPlan, proposal, exceptAgentId){
   });
   return count;
 }
+function getBreakDemandForDate(dateStr){ return state.breakDemand?.[dateStr] || null; }
+function alignQuarter(mins){ return Math.ceil(mins/15)*15; }
+function demandAtMinute(dateStr, minute){
+  const hourly=getBreakDemandForDate(dateStr);
+  if(!hourly) return 0;
+  const key=`${pad(Math.floor(minute/60))}:00`;
+  return Number(hourly[key] || 0);
+}
+function reserveUsage(usage, rangeTxt){
+  const range=parseRangeMinutes(rangeTxt);
+  for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
+}
+function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfter){
+  const startAt=alignQuarter(Math.max(fromMin, minAfter || fromMin));
+  let best=null;
+  for(let t=startAt; t+duration<=toMin; t+=15){
+    let blocked=false;
+    let score=0;
+    for(let m=t; m<t+duration; m+=15){
+      if((usage[m]||0)>=2){ blocked=true; break; }
+      score += demandAtMinute(dateStr,m) + ((usage[m]||0)*250);
+    }
+    if(blocked) continue;
+    if(!best || score<best.score) best={start:t, score};
+  }
+  return best ? rangeFromMinutes(best.start,best.start+duration) : null;
+}
+function buildDemandAwareBreaks(agent,dateStr,usage){
+  const shiftInfo=getShiftTimeInfo(agent,dateStr);
+  const parsed=parseRangeMinutes(shiftInfo.time);
+  const total=parsed.end-parsed.start;
+  const fallback=getBreaksForAgent(agent,0,dateStr);
+  if(total<240) return fallback;
+  const b1=pickLowestDemandRange(dateStr, parsed.start+60, Math.min(parsed.start+180, parsed.end-180), 15, usage);
+  const b1End=b1 ? parseRangeMinutes(b1).end : parsed.start+90;
+  if(b1) reserveUsage(usage,b1);
+  const lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), parsed.end-90, 30, usage, b1End+60);
+  const lunchEnd=lunch ? parseRangeMinutes(lunch).end : parsed.start+240;
+  if(lunch) reserveUsage(usage,lunch);
+  const b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), parsed.end-30, 15, usage, lunchEnd+60);
+  if(b2) reserveUsage(usage,b2);
+  return [b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+}
 function buildBreakPlanForDate(dateStr,weekPlan){
   const result={};
   const usage={};
-  function canUse(range){
-    for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; }
-    return true;
-  }
-  function reserve(range){
-    for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
-  }
+  const hasDemand=!!getBreakDemandForDate(dateStr);
   const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
   shiftIds.forEach(shift=>{
     let idx=0;
     activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
+      if(hasDemand){
+        const selected=buildDemandAwareBreaks(agent,dateStr,usage);
+        result[agent.id]=selected;
+        return;
+      }
       const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserve(parseRangeMinutes(x))); return; }
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
-        if(cand.every(x=>canUse(parseRangeMinutes(x)))) { selected=cand; idx=(idx+step+1); break; }
+        if(cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
       }
       result[agent.id]=selected;
-      selected.forEach(x=>reserve(parseRangeMinutes(x)));
+      selected.forEach(x=>reserveUsage(usage,x));
       idx++;
     });
   });
   return result;
 }
 
+function normalKey(s=''){ return String(s).toLowerCase().replace(/[^a-z0-9]/g,''); }
+function pickRowValue(row, names){
+  const wanted=names.map(normalKey);
+  for(const [k,v] of Object.entries(row||{})){ if(wanted.includes(normalKey(k))) return v; }
+  return '';
+}
+function parseUploadMonthValue(value){
+  if(value==null || value==='') return Number((state.month||todayMonth()).split('-')[1]);
+  const months={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+  const text=String(value).trim().toLowerCase();
+  if(months[text]) return months[text];
+  const num=Number(text);
+  if(num>=1 && num<=12) return num;
+  const dt=new Date(text);
+  return Number.isNaN(dt.getTime()) ? null : (dt.getMonth()+1);
+}
+function parseUploadDayValue(value){
+  const num=Number(value);
+  if(num>=1 && num<=31) return num;
+  const dt=new Date(value);
+  if(!Number.isNaN(dt.getTime())) return dt.getDate();
+  const match=String(value).match(/\d{1,2}/);
+  return match ? Number(match[0]) : null;
+}
+function parseUploadHourValue(value){
+  if(typeof value==='number'){
+    if(value>=0 && value<=23) return `${pad(value)}:00`;
+    if(value>0 && value<1){ const mins=Math.round(value*24*60); return `${pad(Math.floor(mins/60))}:00`; }
+  }
+  const text=String(value||'').trim();
+  if(/^\d{1,2}$/.test(text)) return `${pad(Number(text))}:00`;
+  const dt=new Date(`2000-01-01 ${text}`);
+  if(!Number.isNaN(dt.getTime())) return `${pad(dt.getHours())}:00`;
+  const match=text.match(/(\d{1,2})/);
+  return match ? `${pad(Number(match[1]))}:00` : null;
+}
+function importBreakDemandRows(rows, fileName){
+  ensureBreakPlannerSettings(state);
+  const year=Number((state.month||todayMonth()).split('-')[0]);
+  const demand={};
+  let imported=0;
+  rows.forEach(row=>{
+    const month=parseUploadMonthValue(pickRowValue(row,['month']));
+    const day=parseUploadDayValue(pickRowValue(row,['day','date']));
+    const hour=parseUploadHourValue(pickRowValue(row,['hour','time']));
+    const interactions=Number(pickRowValue(row,['number of interaction','number of interactions','interaction','interactions','volume','count']));
+    if(!month || !day || !hour || Number.isNaN(interactions)) return;
+    const dateStr=`${year}-${pad(month)}-${pad(day)}`;
+    demand[dateStr] ||= {};
+    demand[dateStr][hour]=(demand[dateStr][hour]||0)+interactions;
+    imported++;
+  });
+  if(!imported) throw new Error('Use Excel columns named Month, Day, Hour and Number of Interaction.');
+  state.breakDemand=demand;
+  state.breakDemandMeta={source:fileName, rows:imported, days:Object.keys(demand).length, uploadedAt:new Date().toLocaleString()};
+  state.breakOverrides={};
+}
 function publicState(){ return JSON.parse(JSON.stringify(state)); }
 async function fetchJson(url, opts={}){
   const res=await fetch(url, opts);
@@ -744,45 +850,44 @@ function renderLeave(week,weekPlan){
 }
 
 function renderBreaks(week,weekPlan){
+  ensureBreakPlannerSettings(state);
+  const meta=state.breakDemandMeta || {source:'', rows:0, days:0, uploadedAt:''};
   const rows=[];
   for(let i=0;i<7;i++){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
     const plans=buildBreakPlanForDate(ds,weekPlan);
+    const mode=getBreakDemandForDate(ds) ? '<span class="pill p-work">Peak based</span>' : '<span class="pill p-fixed">Default pattern</span>';
     activeAgents().forEach(agent=>{
       const p=weekPlan[`${agent.id}|${ds}`];
       if(!p || p.status!=='WORK') return;
       const br=plans[agent.id] || getBreaksForAgent(agent,0,ds);
-      const custom=!!state.breakOverrides[`${agent.id}|${ds}`];
       rows.push(`<tr>
         <td>${agent.name}</td>
         <td>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</td>
-        <td><span class="pill ${getShiftTimeInfo(agent,ds).shift===1?'p-sh1':'p-sh2'}">${getShiftTimeInfo(agent,ds).ramadan?'Ramadan Shift ':'Shift '}${getShiftTimeInfo(agent,ds).shift}</span></td>
+        <td><span class="pill ${getShiftTimeInfo(agent,ds).shift===1?'p-sh1':'p-sh2'}">${getShiftTimeInfo(agent,ds).name}</span></td>
         <td>${br[0]}</td>
         <td>${br[1]}</td>
         <td>${br[2]}</td>
-        <td>${custom?'<span class="pill p-leave">Edited</span>':'<span class="pill p-work">Auto</span>'}</td>
-        <td><button class="btn fillBreak" data-agent="${agent.id}" data-date="${ds}" data-b1="${br[0]}" data-lunch="${br[1]}" data-b2="${br[2]}">Edit</button>${custom?` <button class="btn btnr removeBreak" data-agent="${agent.id}" data-date="${ds}">Clear</button>`:''}</td>
+        <td>${mode}</td>
       </tr>`);
     });
   }
-  const rowsHtml=rows.join('') || '<tr><td colspan="8" class="small">No working agents in this week.</td></tr>';
-  const allB1=[...new Set(breakTemplates[1].map(x=>x[0]).concat(breakTemplates[2].map(x=>x[0])))];
-  const allLunch=[...new Set(breakTemplates[1].map(x=>x[1]).concat(breakTemplates[2].map(x=>x[1])))];
-  const allB2=[...new Set(breakTemplates[1].map(x=>x[2]).concat(breakTemplates[2].map(x=>x[2])))];
+  const rowsHtml=rows.join('') || '<tr><td colspan="7" class="small">No working agents in this week.</td></tr>';
+  const uploadState=meta.rows
+    ? `<div class="ok">Loaded ${meta.rows} hourly records across ${meta.days} day(s) from <strong>${escapeHtml(meta.source)}</strong>${meta.uploadedAt?` · Uploaded ${escapeHtml(meta.uploadedAt)}`:''}</div>`
+    : `<div class="warn">Upload an Excel file with Month, Day, Hour and Number of Interaction. The planner will then place breaks away from the busiest hours.</div>`;
   return `
     <div class="card">
       <div class="ch">Break control · ${week.label}</div>
-      <div class="note">Edit breaks here only. Any change saves here and reflects automatically in the weekly planner and dashboard. The app blocks any edit that creates more than 2 agents out at the same time.</div>
+      <div class="note">Upload your hourly interaction file and the planner will distribute breaks for each working day using this fixed order: short break 15 min, lunch 30 min, then short break 15 min.</div>
+      ${uploadState}
       <div class="rowflex">
-        <div class="field"><label>Agent</label><select id="brAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
-        <div class="field"><label>Date</label><input type="date" id="brDate"></div>
-        <div class="field"><label>Break 1</label><select id="br1">${allB1.map(x=>`<option>${x}</option>`).join('')}</select></div>
-        <div class="field"><label>Lunch</label><select id="brLunch">${allLunch.map(x=>`<option>${x}</option>`).join('')}</select></div>
-        <div class="field"><label>Break 2</label><select id="br2">${allB2.map(x=>`<option>${x}</option>`).join('')}</select></div>
-        <button class="btn btnp" id="saveBreak">Save break edit</button>
+        <div class="field" style="min-width:320px;flex:1"><label>Excel file</label><input type="file" id="breakFile" accept=".xlsx,.xls,.csv"></div>
+        <button class="btn btnp" id="uploadBreakFile">Upload interaction list</button>
+        <button class="btn" id="clearBreakForecast">Clear uploaded list</button>
       </div>
     </div>
-    <div class="card"><div class="ch">Working agents and breaks · selected week</div><table class="tbl"><thead><tr><th>Agent</th><th>Date</th><th>Shift</th><th>Break 1</th><th>Lunch</th><th>Break 2</th><th>Mode</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <div class="card"><div class="ch">Generated breaks for the selected week</div><table class="tbl"><thead><tr><th>Agent</th><th>Date</th><th>Shift</th><th>Break 1</th><th>Lunch</th><th>Break 2</th><th>Mode</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
   `;
 }
 
@@ -914,6 +1019,31 @@ function bindPageActions(){
   });
   document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; saveState(); render(); });
   document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
+  const uploadBreakFile=document.getElementById('uploadBreakFile');
+  if(uploadBreakFile) uploadBreakFile.onclick=async ()=>{
+    const input=document.getElementById('breakFile');
+    const file=input?.files?.[0];
+    if(!file) return alert('Please choose the Excel file first.');
+    if(typeof XLSX==='undefined') return alert('The Excel reader is still loading. Please try again.');
+    try{
+      const data=await file.arrayBuffer();
+      const workbook=XLSX.read(data,{type:'array'});
+      const sheet=workbook.Sheets[workbook.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+      importBreakDemandRows(rows,file.name);
+      saveState();
+      render();
+    }catch(err){
+      alert(err.message || 'Could not read the interaction file.');
+    }
+  };
+  const clearBreakForecast=document.getElementById('clearBreakForecast');
+  if(clearBreakForecast) clearBreakForecast.onclick=()=>{
+    state.breakDemand={};
+    state.breakDemandMeta={source:'', rows:0, days:0, uploadedAt:''};
+    saveState();
+    render();
+  };
   const saveRamadan=document.getElementById('saveRamadan');
   if(saveRamadan) saveRamadan.onclick=()=>{
     ensureRamadanSettings(state);
@@ -965,25 +1095,6 @@ function bindPageActions(){
     );
   };
   const saveOverride=document.getElementById('saveOverride'); if(saveOverride) saveOverride.onclick=()=>{const agentId=Number(document.getElementById('ovAgent').value); const date=document.getElementById('ovDate').value; const status=document.getElementById('ovStatus').value; if(!date) return alert('Choose date first.'); setOverride(agentId,date,status); render();};
-  const saveBreak=document.getElementById('saveBreak'); if(saveBreak) saveBreak.onclick=()=>{
-    const agentId=Number(document.getElementById('brAgent').value);
-    const date=document.getElementById('brDate').value;
-    const proposal=[document.getElementById('br1').value,document.getElementById('brLunch').value,document.getElementById('br2').value];
-    if(!date) return alert('Choose date first.');
-    const weekPlan=getWeekPlan(getSelectedWeek());
-    const dayPlan=weekPlan[`${agentId}|${date}`];
-    if(!dayPlan || dayPlan.status!=='WORK') return alert('This agent is not working on that date.');
-    const plans=buildBreakPlanForDate(date,weekPlan);
-    const slots=[];
-    Object.entries(plans).forEach(([id,br])=>{ if(Number(id)!==agentId) slots.push(...br); });
-    const usage={};
-    slots.forEach(r=>{ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ usage[t]=(usage[t]||0)+1; } });
-    for(const r of proposal){ const pr=parseRangeMinutes(r); for(let t=pr.start;t<pr.end;t+=15){ if((usage[t]||0)>=2) return alert('This break time creates more than 2 agents out at the same time. Please choose another slot.'); } }
-    state.breakOverrides[`${agentId}|${date}`]=proposal;
-    render();
-  };
-  document.querySelectorAll('.fillBreak').forEach(b=>b.onclick=()=>{document.getElementById('brAgent').value=b.dataset.agent; document.getElementById('brDate').value=b.dataset.date; document.getElementById('br1').value=b.dataset.b1; document.getElementById('brLunch').value=b.dataset.lunch; document.getElementById('br2').value=b.dataset.b2; if(currentPage==='breaks') window.scrollTo({top:0,behavior:'smooth'});});
-  document.querySelectorAll('.removeBreak').forEach(b=>b.onclick=()=>{delete state.breakOverrides[`${b.dataset.agent}|${b.dataset.date}`]; render();});
 
   const cloudInput=document.getElementById('cloudMasterKey');
   if(cloudInput) cloudInput.value=cloudStatus.masterKey || '';

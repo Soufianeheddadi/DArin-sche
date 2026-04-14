@@ -239,13 +239,19 @@ function loadState(){
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
       parsed.breakOverrides ||= {};
+      ensureBreakPlannerSettings(parsed);
       ensureRamadanSettings(parsed);
       return parsed;
     }
   }catch(e){}
-  return ensureRamadanSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0});
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
 }
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+function ensureBreakPlannerSettings(obj){
+  obj.breakDemand ||= {};
+  obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:''};
+  return obj;
+}
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
   obj.ramadan.names ||= {};
@@ -337,32 +343,73 @@ function getWeekPlan(week){
   });
   return plan;
 }
+function getBreakDemandForDate(dateStr){ return state.breakDemand && state.breakDemand[dateStr] ? state.breakDemand[dateStr] : null; }
+function alignQuarter(mins){ return Math.ceil(mins/15)*15; }
+function demandAtMinute(dateStr, minute){
+  var hourly=getBreakDemandForDate(dateStr);
+  if(!hourly) return 0;
+  var key=pad(Math.floor(minute/60)) + ':00';
+  return Number(hourly[key] || 0);
+}
+function reserveUsage(usage, rangeTxt){
+  var range=parseRangeMinutes(rangeTxt);
+  for(var t=range.start; t<range.end; t+=15){ usage[t]=(usage[t]||0)+1; }
+}
+function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfter){
+  var startAt=alignQuarter(Math.max(fromMin, minAfter || fromMin));
+  var best=null;
+  for(var t=startAt; t+duration<=toMin; t+=15){
+    var blocked=false;
+    var score=0;
+    for(var m=t; m<t+duration; m+=15){
+      if((usage[m]||0)>=2){ blocked=true; break; }
+      score += demandAtMinute(dateStr,m) + ((usage[m]||0)*250);
+    }
+    if(blocked) continue;
+    if(!best || score<best.score) best={start:t, score:score};
+  }
+  return best ? rangeFromMinutes(best.start,best.start+duration) : null;
+}
+function buildDemandAwareBreaks(agent,dateStr,usage){
+  var shiftInfo=getShiftTimeInfo(agent,dateStr);
+  var parsed=parseRangeMinutes(shiftInfo.time);
+  var total=parsed.end-parsed.start;
+  var fallback=getBreakTemplatesForAgent(agent,dateStr)[0] || ['10:00-10:15','13:00-13:30','15:30-15:45'];
+  if(total<240) return fallback;
+  var b1=pickLowestDemandRange(dateStr, parsed.start+60, Math.min(parsed.start+180, parsed.end-180), 15, usage);
+  var b1End=b1 ? parseRangeMinutes(b1).end : parsed.start+90;
+  if(b1) reserveUsage(usage,b1);
+  var lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), parsed.end-90, 30, usage, b1End+60);
+  var lunchEnd=lunch ? parseRangeMinutes(lunch).end : parsed.start+240;
+  if(lunch) reserveUsage(usage,lunch);
+  var b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), parsed.end-30, 15, usage, lunchEnd+60);
+  if(b2) reserveUsage(usage,b2);
+  return [b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+}
 function buildBreakPlanForDate(dateStr,weekPlan){
   const result={};
   const usage={};
-  function canUse(range){
-    for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; }
-    return true;
-  }
-  function reserve(range){
-    for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
-  }
+  const hasDemand=!!getBreakDemandForDate(dateStr);
   const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
   shiftIds.forEach(shift=>{
     let idx=0;
     activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
+      if(hasDemand){
+        result[agent.id]=buildDemandAwareBreaks(agent,dateStr,usage);
+        return;
+      }
       const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserve(parseRangeMinutes(x))); return; }
+      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
-        if(cand.every(x=>canUse(parseRangeMinutes(x)))) { selected=cand; idx=(idx+step+1); break; }
+        if(cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
       }
       result[agent.id]=selected;
-      selected.forEach(x=>reserve(parseRangeMinutes(x)));
+      selected.forEach(x=>reserveUsage(usage,x));
       idx++;
     });
   });
