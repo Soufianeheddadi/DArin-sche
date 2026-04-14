@@ -249,14 +249,20 @@ function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
   obj.ramadan.names ||= {};
+  obj.ramadan.times ||= {};
   obj.ramadan.names[1] ||= defaultRamadan.names[1];
   obj.ramadan.names[2] ||= defaultRamadan.names[2];
-  obj.ramadan.times ||= {};
   obj.ramadan.times[1] ||= defaultRamadan.times[1];
   obj.ramadan.times[2] ||= defaultRamadan.times[2];
   obj.ramadan.agentAssignments ||= {};
   obj.ramadan.saved = !!obj.ramadan.saved;
   return obj;
+}
+function getRamadanShiftIds(){
+  ensureRamadanSettings(state);
+  var ids=[].concat(Object.keys(state.ramadan.names||{}), Object.keys(state.ramadan.times||{})).filter(Boolean);
+  ids=[...new Set(ids)].sort(function(a,b){ return Number(a)-Number(b); });
+  return ids.length ? ids : ['1','2'];
 }
 function parseClockMinutes(hm){ var parts=String(hm||'00:00').split(':').map(Number); return (parts[0]||0)*60+(parts[1]||0); }
 function formatClockMinutes(total){ var h=Math.floor(total/60)%24; var m=total%60; return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'); }
@@ -265,11 +271,13 @@ function isRamadanDate(dateStr){ var r=state.ramadan||defaultRamadan; return !!(
 function getRamadanAssignment(agent){ var r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
 function getShiftTimeInfo(agent,dateStr){
   if(isRamadanDate(dateStr)){
+    var shiftIds=getRamadanShiftIds();
     var assign=getRamadanAssignment(agent);
     var slot=(assign==='auto') ? String(agent.shift) : assign;
-    if(slot==='1' || slot==='2') {
-      var name=(state.ramadan && state.ramadan.names && state.ramadan.names[slot]) || defaultRamadan.names[slot];
-      var time=(state.ramadan && state.ramadan.times && state.ramadan.times[slot]) || defaultRamadan.times[slot];
+    if(assign!=='regular' && shiftIds.indexOf(slot)===-1) slot=shiftIds[0];
+    if(assign!=='regular' && shiftIds.indexOf(String(slot))!==-1) {
+      var name=(state.ramadan && state.ramadan.names && state.ramadan.names[slot]) || ('Ramadan Shift ' + slot);
+      var time=(state.ramadan && state.ramadan.times && state.ramadan.times[slot]) || defaultRamadan.times[2];
       return {label:name + ' · ' + time,name:name,time:time,shift:Number(slot),ramadan:true};
     }
   }
@@ -339,9 +347,10 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   function reserve(range){
     for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
   }
-  [1,2].forEach(shift=>{
+  const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
+  shiftIds.forEach(shift=>{
     let idx=0;
-    activeAgents().filter(agent=>getShiftTimeInfo(agent,dateStr).shift===shift).forEach(agent=>{
+    activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);

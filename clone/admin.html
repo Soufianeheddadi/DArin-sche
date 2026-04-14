@@ -258,14 +258,33 @@ function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').to
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
   obj.ramadan.names ||= {};
+  obj.ramadan.times ||= {};
   obj.ramadan.names[1] ||= defaultRamadan.names[1];
   obj.ramadan.names[2] ||= defaultRamadan.names[2];
-  obj.ramadan.times ||= {};
   obj.ramadan.times[1] ||= defaultRamadan.times[1];
   obj.ramadan.times[2] ||= defaultRamadan.times[2];
   obj.ramadan.agentAssignments ||= {};
   obj.ramadan.saved = !!obj.ramadan.saved;
   return obj;
+}
+function getRamadanShiftIds(){
+  ensureRamadanSettings(state);
+  const ids=[...new Set([...Object.keys(state.ramadan.names||{}), ...Object.keys(state.ramadan.times||{})])]
+    .filter(Boolean)
+    .sort((a,b)=>Number(a)-Number(b));
+  return ids.length ? ids : ['1','2'];
+}
+function getNextRamadanShiftId(){
+  const ids=getRamadanShiftIds().map(Number).filter(n=>!Number.isNaN(n));
+  return String((ids.length ? Math.max(...ids) : 0) + 1);
+}
+function getSuggestedRamadanTime(){
+  const ids=getRamadanShiftIds();
+  const lastId=ids[ids.length-1];
+  const base=splitRange((state.ramadan.times||{})[lastId] || defaultRamadan.times[2]);
+  const start=parseClockMinutes(base.start || '09:00') + 30;
+  const end=parseClockMinutes(base.end || '15:00') + 30;
+  return rangeFromMinutes(start,end);
 }
 function parseClockMinutes(hm){ const [h,m]=String(hm||'00:00').split(':').map(Number); return (h||0)*60+(m||0); }
 function formatClockMinutes(total){ const h=Math.floor(total/60)%24; const m=total%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
@@ -275,11 +294,13 @@ function isRamadanDate(dateStr){ const r=state.ramadan||defaultRamadan; return !
 function getRamadanAssignment(agent){ const r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
 function getShiftTimeInfo(agent,dateStr){
   if(isRamadanDate(dateStr)){
+    const shiftIds=getRamadanShiftIds();
     const assign=getRamadanAssignment(agent);
-    const slot=(assign==='auto') ? String(agent.shift) : assign;
-    if(slot==='1' || slot==='2'){
-      const name=(state.ramadan?.names?.[slot] || defaultRamadan.names[slot]);
-      const time=(state.ramadan?.times?.[slot] || defaultRamadan.times[slot]);
+    let slot=(assign==='auto') ? String(agent.shift) : assign;
+    if(assign!=='regular' && !shiftIds.includes(slot)) slot=shiftIds[0];
+    if(assign!=='regular' && shiftIds.includes(String(slot))){
+      const name=(state.ramadan?.names?.[slot] || `Ramadan Shift ${slot}`);
+      const time=(state.ramadan?.times?.[slot] || defaultRamadan.times[2]);
       return {label:`${name} · ${time}`,name,time,shift:Number(slot),ramadan:true};
     }
   }
@@ -330,15 +351,27 @@ function autoAssignBalancedShifts(){
 }
 function autoAssignRamadanByLanguage(){
   ensureRamadanSettings(state);
+  const shiftIds=getRamadanShiftIds();
   const active=state.agents.filter(a=>a.active);
   const arabic=[];
   const english=[];
   active.forEach(a=>{ (/Arabic/i.test(a.lang) ? arabic : english).push(a); });
   shuffleInPlace(arabic);
   shuffleInPlace(english);
-  const counters={1:{total:0,arabic:0,english:0},2:{total:0,arabic:0,english:0}};
+  const counters={};
+  shiftIds.forEach(id=>{ counters[id]={total:0,arabic:0,english:0}; });
+  function pickRamadanShift(key){
+    let best=shiftIds[0];
+    shiftIds.forEach(id=>{
+      if(!best) best=id;
+      else if(counters[id].total < counters[best].total) best=id;
+      else if(counters[id].total === counters[best].total && counters[id][key] < counters[best][key]) best=id;
+      else if(counters[id].total === counters[best].total && counters[id][key] === counters[best][key] && Math.random()<0.5) best=id;
+    });
+    return best;
+  }
   function assign(agent,key){
-    const shift=pickBalancedShift(counters,key);
+    const shift=pickRamadanShift(key);
     state.ramadan.agentAssignments[String(agent.id)]=String(shift);
     counters[shift].total++;
     counters[shift][key]++;
@@ -404,13 +437,14 @@ function getWeekPlan(week){
   return plan;
 }
 function getDaySummary(dateStr,weekPlan){
-  let available=0, arabic=0, shift1=0, shift2=0, off=0, leave=0, required=requiredByDay[new Date(dateStr).getDay()]||0;
+  let available=0, arabic=0, shift1=0, shift2=0, extra=0, off=0, leave=0, required=requiredByDay[new Date(dateStr).getDay()]||0;
   activeAgents().forEach(a=>{
     const p=weekPlan[`${a.id}|${dateStr}`];
     if(!p) return;
     if(p.status==='WORK'){
+      const shiftInfo=getShiftTimeInfo(a,dateStr);
       available++;
-      if(a.shift===1) shift1++; else shift2++;
+      if(shiftInfo.shift===1) shift1++; else if(shiftInfo.shift===2) shift2++; else extra++;
       if(isArabic(a)) arabic++;
     }else if(p.status==='LEAVE'){
       leave++;
@@ -418,7 +452,7 @@ function getDaySummary(dateStr,weekPlan){
       off++;
     }
   });
-  return {available,arabic,required,gap:available-required,shift1,shift2,off,leave};
+  return {available,arabic,required,gap:available-required,shift1,shift2,extra,off,leave};
 }
 function getBreaksForAgent(agent,workingAgentsOfShiftIndex,dateStr){
   const arr=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[agent.shift]||breakTemplates[1];
@@ -459,9 +493,10 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   function reserve(range){
     for(let t=range.start;t<range.end;t+=15){ usage[t]=(usage[t]||0)+1; }
   }
-  [1,2].forEach(shift=>{
+  const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
+  shiftIds.forEach(shift=>{
     let idx=0;
-    activeAgents().filter(agent=>getShiftTimeInfo(agent,dateStr).shift===shift).forEach(agent=>{
+    activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);
@@ -630,7 +665,7 @@ function renderDashboard(week,weekPlan){
   const focusSummary=getDaySummary(fmtDate(focusDate),weekPlan);
   for(let i=0;i<7;i++){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); totalAvailable+=s.available; totalRequired+=s.required; if(s.gap<0) underDays++;
-    dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2} · Off ${s.off} · Leave ${s.leave}</div></div>`);
+    dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2}${s.extra?` · Extra ${s.extra}`:''} · Off ${s.off} · Leave ${s.leave}</div></div>`);
   }
   const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length;
   return `
@@ -643,10 +678,10 @@ function renderDashboard(week,weekPlan){
       <div class="met"><div class="l">Leave records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
     </div>
     <div class="card"><div class="ch">Daily overview · ${focusDate.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}</div><div class="grid4">
-      <div class="met"><div class="l">Shift 1</div><div class="v">${focusSummary.shift1}</div><div class="s">08:00 - 17:30</div></div>
-      <div class="met"><div class="l">Shift 2</div><div class="v">${focusSummary.shift2}</div><div class="s">09:30 - 19:00</div></div>
-      <div class="met"><div class="l">OFF agents</div><div class="v">${focusSummary.off}</div><div class="s">Includes Friday fixed + weekly off</div></div>
-      <div class="met"><div class="l">On leave</div><div class="v">${focusSummary.leave}</div><div class="s">Planned leave on this day</div></div>
+      <div class="met"><div class="l">Shift 1</div><div class="v">${focusSummary.shift1}</div><div class="s">Primary coverage</div></div>
+      <div class="met"><div class="l">Shift 2</div><div class="v">${focusSummary.shift2}</div><div class="s">Secondary coverage</div></div>
+      <div class="met"><div class="l">Extra shifts</div><div class="v">${focusSummary.extra||0}</div><div class="s">Additional Ramadan shifts</div></div>
+      <div class="met"><div class="l">OFF or leave</div><div class="v">${focusSummary.off + focusSummary.leave}</div><div class="s">Unavailable on this day</div></div>
     </div></div>
     <div class="card"><div class="ch">Week coverage snapshot · ${week.label}</div><div class="grid4">${dayCards.join('')}</div></div>
     ${renderWeeklyTable(week,weekPlan,true)}
@@ -781,35 +816,42 @@ function renderAgentView(week,weekPlan){
 function renderRamadan(){
   ensureRamadanSettings(state);
   const r=state.ramadan;
-  const s1=splitRange(r.times[1]);
-  const s2=splitRange(r.times[2]);
+  const shiftIds=getRamadanShiftIds();
   const showAssignments=!!r.saved;
+  const shiftRows=shiftIds.map(id=>{
+    const slot=splitRange(r.times[id]);
+    return `<div class="card" style="margin-top:10px">
+      <div class="rowflex">
+        <div class="field"><label>Shift ${id} name</label><input type="text" class="ramadanName" data-shift="${id}" value="${r.names[id]||`Ramadan Shift ${id}`}"></div>
+        <div class="field"><label>Start</label><input type="time" class="ramadanStartTime" data-shift="${id}" value="${slot.start||'08:00'}"></div>
+        <div class="field"><label>End</label><input type="time" class="ramadanEndTime" data-shift="${id}" value="${slot.end||'14:00'}"></div>
+        ${shiftIds.length>1?`<button class="btn btnr removeRamadanShift" data-shift="${id}">Remove shift</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
   const rows=activeAgents().map(a=>`<tr>
     <td>${a.name}</td>
     <td>${a.lang}</td>
     <td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">Regular Shift ${a.shift}</span></td>
     <td><select data-id="${a.id}" class="ramadanAssign">
       <option value="auto" ${getRamadanAssignment(a)==='auto'?'selected':''}>Auto from regular shift</option>
-      <option value="1" ${getRamadanAssignment(a)==='1'?'selected':''}>${r.names[1]} · ${r.times[1]}</option>
-      <option value="2" ${getRamadanAssignment(a)==='2'?'selected':''}>${r.names[2]} · ${r.times[2]}</option>
+      ${shiftIds.map(id=>`<option value="${id}" ${getRamadanAssignment(a)===String(id)?'selected':''}>${r.names[id]} · ${r.times[id]}</option>`).join('')}
       <option value="regular" ${getRamadanAssignment(a)==='regular'?'selected':''}>Keep normal timing</option>
     </select></td>
   </tr>`).join('');
   return `
-    <div class="note">Set the Ramadan shifts here, give them names, save them once, then assign each agent manually or auto-assign by language balance.</div>
+    <div class="note">Set the Ramadan shifts here, give them names, add more if you need them, then save. After saving, the agent assignment table will appear below.</div>
     <div class="rowflex">
       <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
       <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
       <div class="field"><label>End date</label><input type="date" id="ramadanEnd" value="${r.end||''}"></div>
-      <div class="field"><label>Shift 1 name</label><input type="text" id="ramadan1Name" value="${r.names[1]||'Ramadan Shift 1'}"></div>
-      <div class="field"><label>Shift 1 start</label><input type="time" id="ramadan1Start" value="${s1.start||'08:00'}"></div>
-      <div class="field"><label>Shift 1 end</label><input type="time" id="ramadan1End" value="${s1.end||'14:00'}"></div>
-      <div class="field"><label>Shift 2 name</label><input type="text" id="ramadan2Name" value="${r.names[2]||'Ramadan Shift 2'}"></div>
-      <div class="field"><label>Shift 2 start</label><input type="time" id="ramadan2Start" value="${s2.start||'09:00'}"></div>
-      <div class="field"><label>Shift 2 end</label><input type="time" id="ramadan2End" value="${s2.end||'15:00'}"></div>
+    </div>
+    ${shiftRows}
+    <div class="rowflex" style="margin-top:10px">
+      <button class="btn" id="addRamadanShift">Add another Ramadan shift</button>
       <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
     </div>
-    ${showAssignments ? `<div class="card" style="margin-top:12px"><div class="ch">Agent Ramadan assignment</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button><div class="small">Randomly spreads agents between the two Ramadan shifts while balancing Arabic-capable and English-only coverage.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Language</th><th>Regular shift</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="warn" style="margin-top:12px">Save the Ramadan setup first. Then the agent assignment table will appear here.</div>`}
+    ${showAssignments ? `<div class="card" style="margin-top:12px"><div class="ch">Agent Ramadan assignment</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button><div class="small">Randomly spreads agents between all Ramadan shifts while balancing Arabic-capable and English-only coverage.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Language</th><th>Regular shift</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="warn" style="margin-top:12px">Save the Ramadan setup first. Then the agent assignment table will appear here.</div>`}
   `;
 }
 
@@ -850,6 +892,26 @@ function bindPageActions(){
   document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); render();});
   const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); render(); };
   document.querySelectorAll('.adminSubTab').forEach(el=>el.onclick=()=>{ adminSubTab=el.dataset.sub || 'team'; render(); });
+  const addRamadanShift=document.getElementById('addRamadanShift');
+  if(addRamadanShift) addRamadanShift.onclick=()=>{
+    ensureRamadanSettings(state);
+    const nextId=getNextRamadanShiftId();
+    state.ramadan.names[nextId]=`Ramadan Shift ${nextId}`;
+    state.ramadan.times[nextId]=getSuggestedRamadanTime();
+    state.ramadan.saved=false;
+    render();
+  };
+  document.querySelectorAll('.removeRamadanShift').forEach(el=>el.onclick=()=>{
+    ensureRamadanSettings(state);
+    const shiftId=String(el.dataset.shift);
+    const ids=getRamadanShiftIds();
+    if(ids.length<=1) return alert('At least one Ramadan shift is required.');
+    delete state.ramadan.names[shiftId];
+    delete state.ramadan.times[shiftId];
+    Object.keys(state.ramadan.agentAssignments||{}).forEach(agentId=>{ if(state.ramadan.agentAssignments[agentId]===shiftId) delete state.ramadan.agentAssignments[agentId]; });
+    state.ramadan.saved=false;
+    render();
+  });
   document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; saveState(); render(); });
   document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
   const saveRamadan=document.getElementById('saveRamadan');
@@ -858,20 +920,24 @@ function bindPageActions(){
     const enabled=document.getElementById('ramadanEnabled').value==='true';
     const start=document.getElementById('ramadanStart').value || '';
     const end=document.getElementById('ramadanEnd').value || '';
-    const name1=document.getElementById('ramadan1Name').value.trim() || 'Ramadan Shift 1';
-    const name2=document.getElementById('ramadan2Name').value.trim() || 'Ramadan Shift 2';
-    const s1Start=document.getElementById('ramadan1Start').value || '08:00';
-    const s1End=document.getElementById('ramadan1End').value || '14:00';
-    const s2Start=document.getElementById('ramadan2Start').value || '09:00';
-    const s2End=document.getElementById('ramadan2End').value || '15:00';
     if(enabled && (!start || !end)) return alert('Please choose Ramadan start and end dates.');
+    const newNames={};
+    const newTimes={};
+    document.querySelectorAll('.ramadanName').forEach(el=>{
+      const shiftId=String(el.dataset.shift);
+      const startEl=document.querySelector(`.ramadanStartTime[data-shift="${shiftId}"]`);
+      const endEl=document.querySelector(`.ramadanEndTime[data-shift="${shiftId}"]`);
+      const shiftName=(el.value || `Ramadan Shift ${shiftId}`).trim();
+      const shiftStart=(startEl && startEl.value) || '08:00';
+      const shiftEnd=(endEl && endEl.value) || '14:00';
+      newNames[shiftId]=shiftName;
+      newTimes[shiftId]=`${shiftStart}-${shiftEnd}`;
+    });
     state.ramadan.enabled=enabled;
     state.ramadan.start=start;
     state.ramadan.end=end;
-    state.ramadan.names[1]=name1;
-    state.ramadan.names[2]=name2;
-    state.ramadan.times[1]=`${s1Start}-${s1End}`;
-    state.ramadan.times[2]=`${s2Start}-${s2End}`;
+    state.ramadan.names=newNames;
+    state.ramadan.times=newTimes;
     state.ramadan.saved=true;
     saveState();
     render();
@@ -879,13 +945,14 @@ function bindPageActions(){
   const autoAssignRamadan=document.getElementById('autoAssignRamadan');
   if(autoAssignRamadan) autoAssignRamadan.onclick=()=>{
     const result=autoAssignRamadanByLanguage();
+    const details=Object.keys(result.counters).map(id=>{
+      const slotName=(state.ramadan.names||{})[id] || `Ramadan Shift ${id}`;
+      const c=result.counters[id];
+      return `${slotName}: ${c.total} total (${c.arabic} Arabic-capable, ${c.english} English-only)`;
+    }).join('\n');
     saveState();
     render();
-    alert(
-      `Auto-assigned ${result.updated} active agents for Ramadan.\n`+
-      `Shift 1: ${result.counters[1].total} total (${result.counters[1].arabic} Arabic-capable, ${result.counters[1].english} English-only)\n`+
-      `Shift 2: ${result.counters[2].total} total (${result.counters[2].arabic} Arabic-capable, ${result.counters[2].english} English-only)`
-    );
+    alert(`Auto-assigned ${result.updated} active agents for Ramadan.\n${details}`);
   };
   const autoShiftBalance=document.getElementById('autoShiftBalance');
   if(autoShiftBalance) autoShiftBalance.onclick=()=>{
