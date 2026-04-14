@@ -139,7 +139,7 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
       <h2>Admin Portal</h2>
       <p>Planner access for roster setup, leave and breaks management.</p>
       <a id="adminEntryLink" class="adminbtn" href="admin.html">Click here as admin</a>
-      <div class="phint">Use admin to manage team setup, cloud sync and weekly exceptions.</div>
+      <div class="phint">Use admin to manage team setup, Ramadan timings, leave and breaks.</div>
     </div>
     <div class="pbox">
       <h2>Agent Portal</h2>
@@ -201,10 +201,12 @@ const defaultAgents=[
 {id:14,name:'Chrstine',lang:'English/Arabic',shift:2,active:true,preferredOff:2},
 {id:15,name:'Ma Cristina Beltran',lang:'English/Arabic',shift:2,active:true,preferredOff:1}
 ];
-const STORAGE_KEY='jaidah_roster_v18';
+const STORAGE_KEY='jaidah_roster_v26';
 const THEME_KEY='jaidah_theme_v1';
 const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
 let cloudSyncBusy=false;
+const shiftLabel={1:'08:00-17:30',2:'09:30-19:00'};
+const defaultRamadan={enabled:false,start:'',end:'',times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{}};
 
 const breakTemplates={
 1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
@@ -237,12 +239,46 @@ function loadState(){
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
       parsed.breakOverrides ||= {};
+      ensureRamadanSettings(parsed);
       return parsed;
     }
   }catch(e){}
-  return {agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0};
+  return ensureRamadanSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0});
 }
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+function ensureRamadanSettings(obj){
+  obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
+  obj.ramadan.times ||= {};
+  obj.ramadan.times[1] ||= defaultRamadan.times[1];
+  obj.ramadan.times[2] ||= defaultRamadan.times[2];
+  obj.ramadan.agentAssignments ||= {};
+  return obj;
+}
+function parseClockMinutes(hm){ var parts=String(hm||'00:00').split(':').map(Number); return (parts[0]||0)*60+(parts[1]||0); }
+function formatClockMinutes(total){ var h=Math.floor(total/60)%24; var m=total%60; return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'); }
+function rangeFromMinutes(start,end){ return formatClockMinutes(start) + '-' + formatClockMinutes(end); }
+function isRamadanDate(dateStr){ var r=state.ramadan||defaultRamadan; return !!(r.enabled && r.start && r.end && dateStr>=r.start && dateStr<=r.end); }
+function getRamadanAssignment(agent){ var r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
+function getShiftTimeInfo(agent,dateStr){
+  if(isRamadanDate(dateStr)){
+    var assign=getRamadanAssignment(agent);
+    var slot=(assign==='auto') ? String(agent.shift) : assign;
+    if(slot==='1' || slot==='2') return {label:(state.ramadan && state.ramadan.times && state.ramadan.times[slot]) || defaultRamadan.times[slot],shift:Number(slot),ramadan:true};
+  }
+  return {label:shiftLabel[agent.shift],shift:agent.shift,ramadan:false};
+}
+function getDynamicBreakTemplates(rangeStr){
+  var parts=String(rangeStr||'').split('-');
+  if(parts.length<2) return null;
+  var start=parseClockMinutes(parts[0]), end=parseClockMinutes(parts[1]), total=end-start;
+  if(total<300) return [[rangeFromMinutes(start+75,start+90),rangeFromMinutes(start+150,start+165),rangeFromMinutes(start+225,start+240)]];
+  return [
+    [rangeFromMinutes(start+90,start+105),rangeFromMinutes(start+180,start+210),rangeFromMinutes(start+270,start+285)],
+    [rangeFromMinutes(start+105,start+120),rangeFromMinutes(start+195,start+225),rangeFromMinutes(start+285,start+300)],
+    [rangeFromMinutes(start+120,start+135),rangeFromMinutes(start+210,start+240),rangeFromMinutes(start+300,start+315)]
+  ];
+}
+function getBreakTemplatesForAgent(agent,dateStr){ var shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.label) : (breakTemplates[agent.shift]||breakTemplates[1]); }
 function getLeaveMap(){
   const map={};
   state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
@@ -297,12 +333,12 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   }
   [1,2].forEach(shift=>{
     let idx=0;
-    activeAgents().filter(agent=>agent.shift===shift).forEach(agent=>{
+    activeAgents().filter(agent=>getShiftTimeInfo(agent,dateStr).shift===shift).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);
       if(ov){ result[agent.id]=ov; ov.forEach(x=>reserve(parseRangeMinutes(x))); return; }
-      const templates=breakTemplates[shift]||breakTemplates[1];
+      const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
@@ -397,8 +433,9 @@ function rebuildAgentSelect(){
   var agents = st.agents.filter(function(a){ return a.active; });
   agents.forEach(function(a){
     var o = document.createElement('option');
+    var shiftInfo = getShiftTimeInfo(a, fmtDate(new Date()));
     o.value = a.id;
-    o.textContent = a.name + ' (Shift ' + a.shift + ' - ' + (a.shift===1?'08:00-17:30':'09:30-19:00') + ')';
+    o.textContent = a.name + ' (' + (shiftInfo.ramadan ? 'Ramadan Shift ' : 'Shift ') + shiftInfo.shift + ' - ' + shiftInfo.label + ')';
     sel.appendChild(o);
   });
   if(current && sel.querySelector('option[value="' + current + '"]')) sel.value = current;
@@ -542,14 +579,15 @@ function draw(dir){
     var d=new Date(week.start); d.setDate(d.getDate()+i);
     var ds=fmtDate(d); var dow=d.getDay();
     var plan=wp[agent.id+'|'+ds];
+    var shiftInfo=getShiftTimeInfo(agent,ds);
     var isT=ds===today;
     var brks=(plan&&plan.status==='WORK')?(buildBreakPlanForDate(ds,wp)[agent.id]||[]):[];
     var spill='',cls='dc',body='',shtm='';
     if(plan&&plan.status==='WORK'){
       work++;
-      spill='<span class="pill p-work">Working</span>';
+      spill='<span class="pill p-work">'+(shiftInfo.ramadan?'Working · Ramadan':'Working')+'</span>';
       if(isT) cls+=' today';
-      shtm='<div class="shtime">'+(agent.shift===1?'08:00 - 17:30':'09:30 - 19:00')+'</div>';
+      shtm='<div class="shtime">'+(shiftInfo.ramadan?'Ramadan · ':'')+shiftInfo.label.replace('-', ' - ')+'</div>';
       if(brks.length>0){
         body='<div class="brkblock"><div class="brklbl">Breaks &amp; Lunch</div>';
         brks.forEach(function(b){
@@ -579,7 +617,7 @@ function draw(dir){
     '<div class="met"><div class="l">Working days</div><div class="v" style="color:#166534">'+work+'</div><div class="s">this week</div></div>'
     +'<div class="met"><div class="l">Days off</div><div class="v" style="color:#1d4ed8">'+off+'</div><div class="s">incl. Friday</div></div>'
     +'<div class="met"><div class="l">Leave days</div><div class="v" style="color:#9a3412">'+leave+'</div><div class="s">this week</div></div>'
-    +'<div class="met"><div class="l">My shift</div><div class="v" style="font-size:14px">'+(agent.shift===1?'08:00':'09:30')+'</div><div class="s">'+(agent.shift===1?'ends 17:30':'ends 19:00')+'</div></div>';
+    +'<div class="met"><div class="l">Base shift</div><div class="v" style="font-size:14px">'+(agent.shift===1?'Shift 1':'Shift 2')+'</div><div class="s">'+shiftLabel[agent.shift]+'</div></div>';
   document.getElementById('daysDiv').innerHTML=cards.join('');
 
   var myL=st.leaves.filter(function(l){ return l.agentId===agent.id; });

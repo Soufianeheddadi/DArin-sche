@@ -184,7 +184,8 @@ const breakTemplates={
 1:[['09:45-10:00','12:00-12:30','15:00-15:15'],['10:00-10:15','12:30-13:00','15:15-15:30'],['10:15-10:30','13:00-13:30','15:30-15:45'],['10:30-10:45','13:30-14:00','15:45-16:00']],
 2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
 };
-const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
+const defaultRamadan={enabled:false,start:'',end:'',times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{}};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',ramadan:'Ramadan Setup',team:'Team Setup',admin:'Admin'};
 let state=loadState();
 const urlParams=new URLSearchParams(location.search);
 const agentView=urlParams.get('view')==='agent';
@@ -234,10 +235,11 @@ function loadState(){
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
       parsed.breakOverrides ||= {};
+      ensureRamadanSettings(parsed);
       return parsed;
     }
   }catch(e){}
-  return {agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0};
+  return ensureRamadanSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0});
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
@@ -252,6 +254,40 @@ function pad(n){return String(n).padStart(2,'0');}
 function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 function humanDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}
 function avatar(name){return name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();}
+function ensureRamadanSettings(obj){
+  obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
+  obj.ramadan.times ||= {};
+  obj.ramadan.times[1] ||= defaultRamadan.times[1];
+  obj.ramadan.times[2] ||= defaultRamadan.times[2];
+  obj.ramadan.agentAssignments ||= {};
+  return obj;
+}
+function parseClockMinutes(hm){ const [h,m]=String(hm||'00:00').split(':').map(Number); return (h||0)*60+(m||0); }
+function formatClockMinutes(total){ const h=Math.floor(total/60)%24; const m=total%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function rangeFromMinutes(start,end){ return `${formatClockMinutes(start)}-${formatClockMinutes(end)}`; }
+function splitRange(range){ const [start,end]=String(range||'').split('-'); return {start:start||'',end:end||''}; }
+function isRamadanDate(dateStr){ const r=state.ramadan||defaultRamadan; return !!(r.enabled && r.start && r.end && dateStr>=r.start && dateStr<=r.end); }
+function getRamadanAssignment(agent){ const r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
+function getShiftTimeInfo(agent,dateStr){
+  if(isRamadanDate(dateStr)){
+    const assign=getRamadanAssignment(agent);
+    const slot=(assign==='auto') ? String(agent.shift) : assign;
+    if(slot==='1' || slot==='2') return {label:(state.ramadan?.times?.[slot] || defaultRamadan.times[slot]),shift:Number(slot),ramadan:true};
+  }
+  return {label:shiftLabel[agent.shift],shift:agent.shift,ramadan:false};
+}
+function getDynamicBreakTemplates(rangeStr){
+  const [startTxt,endTxt]=String(rangeStr||'').split('-');
+  if(!endTxt) return null;
+  const start=parseClockMinutes(startTxt), end=parseClockMinutes(endTxt), total=end-start;
+  if(total<300) return [[rangeFromMinutes(start+75,start+90),rangeFromMinutes(start+150,start+165),rangeFromMinutes(start+225,start+240)]];
+  return [
+    [rangeFromMinutes(start+90,start+105),rangeFromMinutes(start+180,start+210),rangeFromMinutes(start+270,start+285)],
+    [rangeFromMinutes(start+105,start+120),rangeFromMinutes(start+195,start+225),rangeFromMinutes(start+285,start+300)],
+    [rangeFromMinutes(start+120,start+135),rangeFromMinutes(start+210,start+240),rangeFromMinutes(start+300,start+315)]
+  ];
+}
+function getBreakTemplatesForAgent(agent,dateStr){ const shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.label) : (breakTemplates[agent.shift]||breakTemplates[1]); }
 function shuffleInPlace(arr){
   for(let i=arr.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));
@@ -355,8 +391,9 @@ function getDaySummary(dateStr,weekPlan){
   });
   return {available,arabic,required,gap:available-required,shift1,shift2,off,leave};
 }
-function getBreaksForAgent(agent,workingAgentsOfShiftIndex){
-  const arr=breakTemplates[agent.shift]||breakTemplates[1]; return arr[workingAgentsOfShiftIndex%arr.length];
+function getBreaksForAgent(agent,workingAgentsOfShiftIndex,dateStr){
+  const arr=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[agent.shift]||breakTemplates[1];
+  return arr[workingAgentsOfShiftIndex%arr.length];
 }
 function parseRangeMinutes(r){
   const [s,e]=r.split('-');
@@ -395,12 +432,12 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   }
   [1,2].forEach(shift=>{
     let idx=0;
-    activeAgents().filter(agent=>agent.shift===shift).forEach(agent=>{
+    activeAgents().filter(agent=>getShiftTimeInfo(agent,dateStr).shift===shift).forEach(agent=>{
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);
       if(ov){ result[agent.id]=ov; ov.forEach(x=>reserve(parseRangeMinutes(x))); return; }
-      const templates=breakTemplates[shift]||breakTemplates[1];
+      const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
@@ -546,7 +583,7 @@ function playWeekTransition(dir){
   app.classList.add('week-fade');
   setTimeout(()=>app.classList.remove('week-next','week-prev','week-fade'), 360);
 }
-function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
+function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
 function syncHeader(){
   const mi=getMonthInfo(state.month); const monthPicker=document.getElementById('monthPicker'); const weekPicker=document.getElementById('weekPicker'); monthPicker.value=state.month;
   weekPicker.innerHTML=mi.weeks.map((w,i)=>`<option value="${i}">Week ${i+1} · ${w.label}</option>`).join(''); weekPicker.value=String(state.selectedWeek);
@@ -557,9 +594,7 @@ function syncHeader(){
 }
 function renderDashboard(week,weekPlan){
   let totalAvailable=0,totalRequired=0,underDays=0; const dayCards=[];
-  const syncHint = (cloudStatus.binId && !cloudStatus.masterKey)
-    ? `<div class="warn">Cloud link is active, but Master Key is not saved on this browser. Changes here will not sync to agents until you reconnect in Admin tab.</div>`
-    : '';
+  const syncHint = '';
   const today=new Date();
   const weekEnd=new Date(week.start); weekEnd.setDate(weekEnd.getDate()+6);
   const focusDate=(today>=week.start && today<=weekEnd)? today : new Date(week.start);
@@ -611,8 +646,9 @@ function renderWeeklyTable(week,weekPlan,compact){
       const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const p=weekPlan[`${agent.id}|${ds}`];
       let body='';
       if(p.status==='WORK'){
-        const br=breakPlans[ds][agent.id] || getBreaksForAgent(agent,0);
-        body=`<div class="st">WORK</div><div class="tm">${shiftLabel[agent.shift]}</div><div class="br">B1 ${br[0]}<br>Lunch ${br[1]}<br>B2 ${br[2]}</div>`;
+        const shiftInfo=getShiftTimeInfo(agent,ds);
+        const br=breakPlans[ds][agent.id] || getBreaksForAgent(agent,0,ds);
+        body=`<div class="st">${shiftInfo.ramadan?'WORK · RAMADAN':'WORK'}</div><div class="tm">${shiftInfo.label}</div><div class="br">B1 ${br[0]}<br>Lunch ${br[1]}<br>B2 ${br[2]}</div>`;
       }else if(p.status==='OFF'){
         body=`<div class="st">OFF</div><div class="tm">${p.reason}</div>`;
       }else{
@@ -652,12 +688,12 @@ function renderBreaks(week,weekPlan){
     activeAgents().forEach(agent=>{
       const p=weekPlan[`${agent.id}|${ds}`];
       if(!p || p.status!=='WORK') return;
-      const br=plans[agent.id] || getBreaksForAgent(agent,0);
+      const br=plans[agent.id] || getBreaksForAgent(agent,0,ds);
       const custom=!!state.breakOverrides[`${agent.id}|${ds}`];
       rows.push(`<tr>
         <td>${agent.name}</td>
         <td>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</td>
-        <td><span class="pill ${agent.shift===1?'p-sh1':'p-sh2'}">${agent.shift===1?'Shift 1':'Shift 2'}</span></td>
+        <td><span class="pill ${getShiftTimeInfo(agent,ds).shift===1?'p-sh1':'p-sh2'}">${getShiftTimeInfo(agent,ds).ramadan?'Ramadan Shift ':'Shift '}${getShiftTimeInfo(agent,ds).shift}</span></td>
         <td>${br[0]}</td>
         <td>${br[1]}</td>
         <td>${br[2]}</td>
@@ -697,21 +733,58 @@ function renderAgentView(week,weekPlan){
   for(let i=0;i<7;i++){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d);
     const plan=weekPlan[`${agent.id}|${ds}`];
+    const shiftInfo=getShiftTimeInfo(agent,ds);
     const breaks=plan && plan.status==='WORK' ? (buildBreakPlanForDate(ds,weekPlan)[agent.id]||[]) : [];
     if(plan?.status==='WORK') work++; else if(plan?.status==='OFF') off++; else if(plan?.status==='LEAVE') leave++;
     cards.push(`<div class="daycard"><h4>${d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})}</h4>
       <div class="kv"><div>Status: <strong>${plan?plan.status:'-'}</strong></div>
       <div>${plan?.reason||''}</div>
-      ${plan?.status==='WORK'?`<div>Shift: ${agent.shift===1?'Shift 1 · 08:00-17:30':'Shift 2 · 09:30-19:00'}</div><div>Break 1: ${breaks[0]||'-'}</div><div>Lunch: ${breaks[1]||'-'}</div><div>Break 2: ${breaks[2]||'-'}</div>`:''}
+      ${plan?.status==='WORK'?`<div>Shift: ${shiftInfo.ramadan?'Ramadan · ':''}${shiftInfo.label}</div><div>Break 1: ${breaks[0]||'-'}</div><div>Lunch: ${breaks[1]||'-'}</div><div>Break 2: ${breaks[2]||'-'}</div>`:''}
       </div></div>`);
   }
   return `<div class="grid4">
     <div class="met"><div class="l">Working days</div><div class="v">${work}</div><div class="s">selected week</div></div>
     <div class="met"><div class="l">OFF days</div><div class="v">${off}</div><div class="s">includes Friday</div></div>
     <div class="met"><div class="l">Leave days</div><div class="v">${leave}</div><div class="s">selected week</div></div>
-    <div class="met"><div class="l">Shift</div><div class="v" style="font-size:18px">${agent.shift===1?'Shift 1':'Shift 2'}</div><div class="s">${shiftLabel[agent.shift]}</div></div>
+    <div class="met"><div class="l">Base shift</div><div class="v" style="font-size:18px">${agent.shift===1?'Shift 1':'Shift 2'}</div><div class="s">${shiftLabel[agent.shift]}</div></div>
   </div>
   <div class="card"><div class="ch">${agent.name} · weekly schedule</div><div class="note">This view is for the individual agent. Any roster, leave, or break update from the planner reflects here automatically.</div><div class="daycards">${cards.join('')}</div></div>`;
+}
+
+function renderRamadan(week,weekPlan){
+  ensureRamadanSettings(state);
+  const r=state.ramadan;
+  const s1=splitRange(r.times[1]);
+  const s2=splitRange(r.times[2]);
+  const rows=activeAgents().map(a=>`<tr>
+    <td>${a.name}</td>
+    <td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">Regular Shift ${a.shift}</span></td>
+    <td><select data-id="${a.id}" class="ramadanAssign">
+      <option value="auto" ${getRamadanAssignment(a)==='auto'?'selected':''}>Auto from regular shift</option>
+      <option value="1" ${getRamadanAssignment(a)==='1'?'selected':''}>Use Ramadan Shift 1</option>
+      <option value="2" ${getRamadanAssignment(a)==='2'?'selected':''}>Use Ramadan Shift 2</option>
+      <option value="regular" ${getRamadanAssignment(a)==='regular'?'selected':''}>Keep normal timing</option>
+    </select></td>
+  </tr>`).join('');
+  return `
+    <div class="card">
+      <div class="ch">Ramadan settings</div>
+      <div class="note">Enable Ramadan mode, set the date range, then define the general Ramadan Shift 1 and Shift 2 timings. After that, choose for each agent which Ramadan timing to follow.</div>
+      <div class="rowflex">
+        <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
+        <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
+        <div class="field"><label>End date</label><input type="date" id="ramadanEnd" value="${r.end||''}"></div>
+        <div class="field"><label>Ramadan Shift 1 start</label><input type="time" id="ramadan1Start" value="${s1.start||'08:00'}"></div>
+        <div class="field"><label>Ramadan Shift 1 end</label><input type="time" id="ramadan1End" value="${s1.end||'14:00'}"></div>
+        <div class="field"><label>Ramadan Shift 2 start</label><input type="time" id="ramadan2Start" value="${s2.start||'09:00'}"></div>
+        <div class="field"><label>Ramadan Shift 2 end</label><input type="time" id="ramadan2End" value="${s2.end||'15:00'}"></div>
+        <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
+        <button class="btn" id="applyRamadanAuto">Auto assign by regular shift</button>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Per-agent Ramadan assignment</div><table class="tbl"><thead><tr><th>Agent</th><th>Regular shift</th><th>Ramadan timing choice</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${renderWeeklyTable(week,weekPlan,true)}
+  `;
 }
 
 function renderTeam(){
@@ -719,7 +792,7 @@ function renderTeam(){
   const sharedLink=currentAgentLink();
   return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. The app auto-generates the second off for each week and you can still edit exceptions.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred off</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
 }
-function renderAdmin(){
+function renderAdmin(week,weekPlan){
   const rows=state.agents.map(a=>`<tr>
     <td><input value="${a.name}" data-id="${a.id}" data-field="name" class="agentEdit"></td>
     <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
@@ -729,25 +802,8 @@ function renderAdmin(){
     <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
   </tr>`).join('');
   return `
+    ${renderRamadan(week,weekPlan)}
     <div class="card"><div class="ch">Team master data</div><div class="note">Use this only for the stable setup. Day-to-day planning should happen through the weekly planner, leave control, and break control.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn" id="autoShiftBalance">Auto-assign shifts (random + language balance)</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="card"><div class="ch">Weekly edit for selected week</div>
-      <div class="rowflex">
-        <div class="field"><label>Agent</label><select id="ovAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
-        <div class="field"><label>Date</label><input type="date" id="ovDate"></div>
-        <div class="field"><label>Status</label><select id="ovStatus"><option value="WORK">Working</option><option value="OFF">OFF</option><option value="LEAVE">Leave</option><option value="CLEAR">Back to auto</option></select></div>
-        <button class="btn btnp" id="saveOverride">Save weekly edit</button>
-      </div>
-      <div class="small" style="margin-top:8px">Use this only when the auto-generated roster needs adjustment.</div>
-    </div>
-    <div class="card"><div class="ch">Cloud sync setup</div>
-      <div class="note">Paste your JSONBin Master Key once. The app will create a public cloud bin, save all roster changes there, and generate one shared agent link.</div>
-      <div class="rowflex">
-        <div class="field" style="min-width:320px;flex:1"><label>JSONBin Master Key</label><input type="password" id="cloudMasterKey" placeholder="$2b$..."></div>
-        <button class="btn btnp" id="connectCloud">Connect cloud</button>
-        <button class="btn" id="loadCloud">Load cloud</button>
-      </div>
-      <div id="cloudStatusBox" style="margin-top:12px"></div>
-    </div>
     <div class="card"><div class="ch">Data control</div><div class="rowflex"><button class="btn" id="exportJson">Export data</button><button class="btn btnr" id="resetAll">Reset all</button></div><div id="exportBox" style="margin-top:12px"></div></div>
   `;
 }
@@ -760,7 +816,36 @@ function bindPageActions(){
   document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); render();});
   document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); render();});
   const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); render(); };
-  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
+  document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; saveState(); render(); });
+  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
+  const saveRamadan=document.getElementById('saveRamadan');
+  if(saveRamadan) saveRamadan.onclick=()=>{
+    ensureRamadanSettings(state);
+    const enabled=document.getElementById('ramadanEnabled').value==='true';
+    const start=document.getElementById('ramadanStart').value || '';
+    const end=document.getElementById('ramadanEnd').value || '';
+    const s1Start=document.getElementById('ramadan1Start').value || '08:00';
+    const s1End=document.getElementById('ramadan1End').value || '14:00';
+    const s2Start=document.getElementById('ramadan2Start').value || '09:00';
+    const s2End=document.getElementById('ramadan2End').value || '15:00';
+    if(enabled && (!start || !end)) return alert('Please choose Ramadan start and end dates.');
+    state.ramadan.enabled=enabled;
+    state.ramadan.start=start;
+    state.ramadan.end=end;
+    state.ramadan.times[1]=`${s1Start}-${s1End}`;
+    state.ramadan.times[2]=`${s2Start}-${s2End}`;
+    saveState();
+    render();
+  };
+  const applyRamadanAuto=document.getElementById('applyRamadanAuto');
+  if(applyRamadanAuto) applyRamadanAuto.onclick=()=>{
+    ensureRamadanSettings(state);
+    const map={};
+    activeAgents().forEach(a=>{ map[a.id]='auto'; });
+    state.ramadan.agentAssignments=map;
+    saveState();
+    render();
+  };
   const autoShiftBalance=document.getElementById('autoShiftBalance');
   if(autoShiftBalance) autoShiftBalance.onclick=()=>{
     const result=autoAssignBalancedShifts();
