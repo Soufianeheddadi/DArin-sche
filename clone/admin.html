@@ -124,10 +124,11 @@ body.light-theme .heatcell{color:#0f172a}
 .legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
 .legend-bar{height:10px;width:140px;border-radius:999px;background:linear-gradient(90deg,rgba(56,189,248,.18),rgba(59,130,246,.45),rgba(147,51,234,.75))}
 .agentheat-wrap{overflow:auto}
-.agentheatgrid{display:grid;grid-template-columns:180px repeat(16,minmax(44px,1fr)) 90px;gap:4px;min-width:1080px}
-.agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}
+.agentheatgrid{display:grid;grid-template-columns:180px repeat(48,minmax(28px,1fr)) 90px;gap:3px;min-width:1700px}
+.agenthead,.agentname,.agentslot,.agenteditcell{border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
 .agenthead,.agentname{background:var(--card);font-weight:700}
-.agentslot{font-size:9px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.2;word-break:break-word}
+.agenthead small{display:block;color:var(--muted);font-weight:400;font-size:9px}
+.agentslot{font-size:8px;font-weight:700;background:rgba(148,163,184,.08);line-height:1.1;word-break:break-word;min-height:34px;display:flex;align-items:center;justify-content:center}
 .agentslot.work{background:rgba(34,197,94,.18)}
 .agentslot.break{background:rgba(56,189,248,.4)}
 .agentslot.lunch{background:rgba(251,191,36,.45);color:#111827}
@@ -929,7 +930,10 @@ function renderBreaks(week,weekPlan){
   const focusDate=syncBreakFocusDate(week);
   const focusLabel=new Date(focusDate).toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'});
   const hours=Array.from({length:24},(_,i)=>`${pad(i)}:00`);
-  const displayHours=Array.from({length:16},(_,i)=>`${pad(i+7)}:00`);
+  const displayHours=[];
+  for(let h=7; h<19; h++){
+    ['00','15','30','45'].forEach(m=>displayHours.push(`${pad(h)}:${m}`));
+  }
   let maxValue=0;
   days.forEach(day=>{ hours.forEach(hour=>{ maxValue=Math.max(maxValue, Number(state.breakDemand?.[day.key]?.[hour]||0)); }); });
   const head=['<div></div>', ...days.map(day=>`<div class="heathead">${day.date.toLocaleDateString('en-GB',{weekday:'short'})}<small>${humanDate(day.date)}</small></div>`)].join('');
@@ -952,7 +956,16 @@ function renderBreaks(week,weekPlan){
   const workingAgents=displayAgents.filter(agent=>weekPlan[`${agent.id}|${focusDate}`]?.status==='WORK');
   const firstAgent=workingAgents[0];
   const firstBreaks=firstAgent ? (focusPlans[firstAgent.id] || getBreaksForAgent(firstAgent,0,focusDate)) : ['10:00-10:15','13:00-13:30','15:30-15:45'];
-  const agentGrid=['<div></div>', ...displayHours.map(hour=>`<div class="agenthead">${hour}</div>`), '<div class="agenthead">Edit</div>'];
+  const breakCounts={};
+  displayHours.forEach(time=>{ breakCounts[time]=0; });
+  workingAgents.forEach(agent=>{
+    const br=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
+    br.forEach(range=>{
+      const parsed=parseRangeMinutes(range);
+      for(let t=parsed.start; t<parsed.end; t+=15){ const key=`${pad(Math.floor(t/60))}:${pad(t%60)}`; if(key in breakCounts) breakCounts[key]++; }
+    });
+  });
+  const agentGrid=['<div></div>', ...displayHours.map(time=>`<div class="agenthead">${time}<small>${breakCounts[time]} break${breakCounts[time]===1?'':'s'}</small></div>`), '<div class="agenthead">Edit</div>'];
   displayAgents.forEach(agent=>{
     const dayState=weekPlan[`${agent.id}|${focusDate}`];
     if(!dayState || dayState.status!=='WORK'){
@@ -965,11 +978,11 @@ function renderBreaks(week,weekPlan){
     const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
     const ranges={b1:parseRangeMinutes(breaks[0]), lunch:parseRangeMinutes(breaks[1]), b2:parseRangeMinutes(breaks[2]), shift:parseRangeMinutes(shiftInfo.time)};
     agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name} · B1 ${breaks[0]} · Lunch ${breaks[1]} · B2 ${breaks[2]}</small></div>`);
-    displayHours.forEach(hour=>{
-      const minute=parseClockMinutes(hour);
-      const slot={start:minute,end:minute+60};
+    displayHours.forEach(time=>{
+      const minute=parseClockMinutes(time);
+      const slot={start:minute,end:minute+15};
       let cls='off', label='';
-      if(overlapsRange(slot,ranges.shift)){ cls='work'; label='Working'; }
+      if(overlapsRange(slot,ranges.shift)){ cls='work'; label='•'; }
       if(overlapsRange(slot,ranges.b1)){ cls='break'; label=breaks[0]; }
       if(overlapsRange(slot,ranges.lunch)){ cls='lunch'; label=breaks[1]; }
       if(overlapsRange(slot,ranges.b2)){ cls='break'; label=breaks[2]; }
