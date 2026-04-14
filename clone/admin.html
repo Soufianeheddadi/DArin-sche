@@ -84,6 +84,8 @@ body.light-theme .burger{color:#0f172a;background:rgba(255,255,255,.5)}
 .rowflex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tight input,.tight select{min-width:auto;width:100%}
 .leave-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
+.holiday-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr .8fr 1fr auto;gap:8px;align-items:end}
+.holiday-fixed-grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px}
 .small{font-size:11px;color:var(--muted)}
 .exporttxt{width:100%;height:200px;border:1px solid rgba(148,163,184,.38);border-radius:10px;padding:10px;background:rgba(15,23,42,.72);color:#dbeafe;resize:vertical}
 .exporttxt:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18)}
@@ -116,7 +118,7 @@ body.light-theme .p-sh2{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.layout{display:block}.side{width:230px}.main{margin-left:72px}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+@media(max-width:700px){.layout{display:block}.side{width:230px}.main{margin-left:72px}.grid4{grid-template-columns:1fr}.leave-grid,.holiday-grid,.holiday-fixed-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
 
 body.agent-mode .side{display:none}
 body.agent-mode .top{align-items:center}
@@ -163,7 +165,7 @@ body.light-theme .heatcell{color:#0f172a}
     </div>
     <button class="nb on" data-page="dashboard"><span class="ico">🏠</span><span class="txt">Dashboard</span></button>
     <button class="nb" data-page="weekly"><span class="ico">📅</span><span class="txt">Weekly Planner</span></button>
-    <button class="nb" data-page="leave"><span class="ico">🗓️</span><span class="txt">Leave Control</span></button>
+    <button class="nb" data-page="leave"><span class="ico">🗓️</span><span class="txt">Leave and Holidays</span></button>
     <button class="nb" data-page="breaks"><span class="ico">☕</span><span class="txt">Break Control</span></button>
     <button class="nb" data-page="team"><span class="ico">👥</span><span class="txt">Team Setup</span></button>
     <button class="nb" data-page="admin"><span class="ico">⚙️</span><span class="txt">Admin</span></button>
@@ -224,7 +226,7 @@ const breakTemplates={
 2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
 };
 const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
-const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave Control',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave and Holidays',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
 let state=loadState();
 const urlParams=new URLSearchParams(location.search);
 const agentView=urlParams.get('view')==='agent';
@@ -278,6 +280,7 @@ function loadState(){
       const parsed=JSON.parse(raw);
       parsed.agents ||= JSON.parse(JSON.stringify(defaultAgents));
       parsed.leaves ||= [];
+      parsed.holidays ||= [];
       parsed.weekOverrides ||= {};
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
@@ -287,7 +290,7 @@ function loadState(){
       return parsed;
     }
   }catch(e){}
-  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],holidays:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
@@ -307,12 +310,19 @@ function ensureBreakPlannerSettings(obj){
   obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
   obj.breakFocusDate ||= '';
   obj.breakSyncVersion ||= 0;
+  obj.syncVersion ||= 0;
+  obj.lastUpdatedAt ||= '';
   return obj;
 }
-function markBreakSyncChange(){
+function markRosterSyncChange(){
   ensureBreakPlannerSettings(state);
-  state.breakSyncVersion=Date.now();
-  state.breakDemandMeta.updatedAt=new Date().toLocaleString();
+  state.syncVersion=Date.now();
+  state.lastUpdatedAt=new Date().toLocaleString();
+}
+function markBreakSyncChange(){
+  markRosterSyncChange();
+  state.breakSyncVersion=state.syncVersion;
+  state.breakDemandMeta.updatedAt=state.lastUpdatedAt;
 }
 function ensureRamadanSettings(obj){
   obj.ramadan ||= JSON.parse(JSON.stringify(defaultRamadan));
@@ -452,12 +462,66 @@ function getMonthInfo(monthStr){
 function getSelectedWeek(){const info=getMonthInfo(state.month); if(state.selectedWeek>info.weeks.length-1) state.selectedWeek=info.weeks.length-1; if(state.selectedWeek<0) state.selectedWeek=0; return info.weeks[state.selectedWeek];}
 function weekKey(start){return fmtDate(start);} 
 function isArabic(agent){return /Arabic/i.test(agent.lang);} 
+function normalizePreferredOff(value){ const num=Number(value); return [0,1,2,3,4,6].includes(num) ? num : -1; }
+function preferredOffLabel(value){ const labels={0:'Sunday',1:'Monday',2:'Tuesday',3:'Wednesday',4:'Thursday',6:'Saturday'}; return labels[normalizePreferredOff(value)] || 'Not specified'; }
+function preferredOffOptions(value){
+  const selected=normalizePreferredOff(value);
+  return `<option value="-1" ${selected===-1?'selected':''}>Not specified</option><option value="0" ${selected===0?'selected':''}>Sunday</option><option value="1" ${selected===1?'selected':''}>Monday</option><option value="2" ${selected===2?'selected':''}>Tuesday</option><option value="3" ${selected===3?'selected':''}>Wednesday</option><option value="4" ${selected===4?'selected':''}>Thursday</option><option value="6" ${selected===6?'selected':''}>Saturday</option>`;
+}
+function stableOffNoise(agentId,dateStr){
+  const seed=`${agentId}|${dateStr}|${state.month||''}`;
+  let hash=0;
+  for(let i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
+  return Math.abs(hash%1000)/1000;
+}
 function getLeaveDates(agentId,start,end){
   const out=[]; let d=new Date(start); const e=new Date(end); while(d<=e){out.push(fmtDate(d)); d.setDate(d.getDate()+1);} return out;
 }
 function getLeaveMap(){
   const map={};
   state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
+  return map;
+}
+function getHolidayFixedDates(holiday){
+  const allowed=new Set(getLeaveDates(0,holiday.start,holiday.end));
+  return [...new Set([...(holiday.fixedDates||[])].map(x=>String(x||'').trim()).filter(x=>allowed.has(x)))];
+}
+function getHolidayMap(baseLeaveMap){
+  const map={};
+  const leaveMap=baseLeaveMap || getLeaveMap();
+  (state.holidays||[]).forEach((holiday,index)=>{
+    if(!holiday?.start || !holiday?.end) return;
+    const title=(holiday.name||`Holiday ${index+1}`).trim();
+    const fixedDates=getHolidayFixedDates(holiday);
+    const totalDays=getLeaveDates(0,holiday.start,holiday.end).length;
+    const randomCount=Math.max(0, totalDays-fixedDates.length);
+    const windowStart=new Date(holiday.start);
+    const windowEnd=new Date(holiday.start);
+    windowEnd.setDate(windowEnd.getDate() + ((Number(holiday.distributionWeeks)||1) * 7) - 1);
+    const pool=[];
+    for(let d=new Date(windowStart); d<=windowEnd; d.setDate(d.getDate()+1)){
+      const ds=fmtDate(d);
+      if(d.getDay()===5 || fixedDates.includes(ds)) continue;
+      pool.push(ds);
+    }
+    activeAgents().forEach(agent=>{
+      fixedDates.forEach(ds=>{
+        if(!leaveMap[`${agent.id}|${ds}`]) map[`${agent.id}|${ds}`]=`${title} · fixed off`;
+      });
+      const ranked=pool
+        .filter(ds=>!leaveMap[`${agent.id}|${ds}`])
+        .map(ds=>{
+          const dow=new Date(ds).getDay();
+          const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+          return {date:ds, score:operationBias + stableOffNoise(`${agent.id}-${index}`,ds)};
+        })
+        .sort((a,b)=>a.score-b.score)
+        .slice(0,randomCount);
+      ranked.forEach(item=>{
+        if(!map[`${agent.id}|${item.date}`]) map[`${agent.id}|${item.date}`]=`${title} · distributed off`;
+      });
+    });
+  });
   return map;
 }
 function activeAgents(){return state.agents.filter(a=>a.active);}
@@ -469,16 +533,21 @@ function countWeeklyLeaves(agentId,week){
 function autoSecondOffDate(agent,week){
   if(countWeeklyLeaves(agent.id,week)>=2) return null; // leave already gives rest
   let best=null;
+  const preferred=normalizePreferredOff(agent.preferredOff);
+  const hasPreferred=preferred!==-1;
   for(let i=0;i<7;i++){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const dow=d.getDay();
     if(dow===5) continue; // Friday fixed off handled separately
-    const score=(dow===agent.preferredOff?0:2)+(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    const preferenceBias=hasPreferred ? (dow===preferred?0:2) : stableOffNoise(agent.id,fmtDate(d));
+    const score=operationBias+preferenceBias;
     if(!best || score<best.score) best={date:fmtDate(d),score};
   }
   return best?best.date:null;
 }
 function getWeekPlan(week){
   const leaveMap=getLeaveMap();
+  const holidayMap=getHolidayMap(leaveMap);
   const overrides=state.weekOverrides[weekKey(week.start)]||{};
   const plan={};
   activeAgents().forEach(agent=>{
@@ -487,6 +556,7 @@ function getWeekPlan(week){
       const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const k=`${agent.id}|${ds}`;
       let status='WORK'; let reason='';
       if(d.getDay()===5){status='OFF'; reason='Friday fixed';}
+      else if(holidayMap[k]){status='OFF'; reason=holidayMap[k];}
       else if(leaveMap[k]){status='LEAVE'; reason=leaveMap[k];}
       else if(secondOff && ds===secondOff){status='OFF'; reason='Weekly off';}
       if(overrides[k]){status=overrides[k].status; reason=overrides[k].reason||'Manual edit';}
@@ -874,15 +944,15 @@ function renderDashboard(week,weekPlan){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const s=getDaySummary(ds,weekPlan); totalAvailable+=s.available; totalRequired+=s.required; if(s.gap<0) underDays++;
     dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2}${s.extra?` · Extra ${s.extra}`:''} · Off ${s.off} · Leave ${s.leave}</div></div>`);
   }
-  const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length;
+  const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length + (state.holidays||[]).filter(h=> overlapsWeek(h,week)).length;
   return `
     ${syncHint}
-    <div class="note">This version is simplified around your real workflow: select the week, let the app generate the roster automatically, then only edit exceptions or add leave.</div>
+    <div class="note">This version is simplified around your real workflow: select the week, let the app generate the roster automatically, then only edit exceptions or add leave and holiday rules.</div>
     <div class="grid4">
       <div class="met"><div class="l">Active agents</div><div class="v">${activeAgents().length}</div><div class="s">Friday fixed off for all</div></div>
       <div class="met"><div class="l">Total weekly coverage</div><div class="v">${totalAvailable}</div><div class="s">Required ${totalRequired}</div></div>
       <div class="met"><div class="l">Under-covered days</div><div class="v" style="color:${underDays?'#991b1b':'#166534'}">${underDays}</div><div class="s">This selected week</div></div>
-      <div class="met"><div class="l">Leave records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
+      <div class="met"><div class="l">Leave / holiday records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
     </div>
     <div class="card"><div class="ch">Daily overview · ${focusDate.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}</div><div class="grid4">
       <div class="met"><div class="l">Shift 1</div><div class="v">${focusSummary.shift1}</div><div class="s">Primary coverage</div></div>
@@ -930,14 +1000,15 @@ function renderWeeklyTable(week,weekPlan,compact){
     }
     rows+=`<div class="wagent"><div class="av">${avatar(agent.name)}</div><div><div style="font-weight:700">${agent.name}</div><div class="small">${agent.lang} · ${agent.shift===1?'Shift 1':'Shift 2'}</div></div></div>${cells}`;
   });
-  return `<div class="card"><div class="ch">Auto-generated weekly roster · ${week.label}</div><div class="note">The app generates the week automatically. Each agent gets Friday OFF plus one extra weekly OFF unless leave already reduces the week. You only edit exceptions when needed.</div><div style="overflow:auto"><div class="weekgrid">${['<div></div>',...dayHeaders].join('')}${rows}</div></div></div>`;
+  return `<div class="card"><div class="ch">Auto-generated weekly roster · ${week.label}</div><div class="note">The app generates the week automatically. Friday fixed OFF, the extra weekly OFF, leave records, and holiday rules are all applied here for you.</div><div style="overflow:auto"><div class="weekgrid">${['<div></div>',...dayHeaders].join('')}${rows}</div></div></div>`;
 }
 function renderLeave(week,weekPlan){
   const rows=state.leaves.map((l,i)=>{ const agent=state.agents.find(a=>a.id===l.agentId); return `<tr><td>${agent?agent.name:'Unknown'}</td><td>${l.start}</td><td>${l.end}</td><td><span class="pill p-leave">${l.type}</span></td><td><button class="btn btnr removeLeave" data-index="${i}">Remove</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="small">No leave added yet.</td></tr>';
+  const holidayRows=(state.holidays||[]).map((h,i)=>{ const fixed=getHolidayFixedDates(h); const total=getLeaveDates(0,h.start,h.end).length; const distributed=Math.max(0,total-fixed.length); return `<tr><td>${escapeHtml(h.name||'Holiday')}</td><td>${h.start}</td><td>${h.end}</td><td>${fixed.length}</td><td>${fixed.length?fixed.join('<br>'):'—'}</td><td>${distributed} day(s) over ${Number(h.distributionWeeks)||1} week(s)</td><td><button class="btn btnr removeHoliday" data-index="${i}">Remove</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="small">No holiday rules added yet.</td></tr>';
   return `
     <div class="card">
-      <div class="ch">Add leave</div>
-      <div class="note">Only add leave here. The app will rebuild the weekly roster automatically around it.</div>
+      <div class="ch">Leave and Holidays</div>
+      <div class="note">Add individual leave here, or create a holiday rule. For holidays, you can set fixed OFF dates and let the remaining days be distributed automatically over 1, 2, or 4 weeks.</div>
       <div class="leave-grid">
         <div class="field tight"><label>Agent</label><select id="leaveAgent">${activeAgents().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
         <div class="field tight"><label>Start</label><input type="date" id="leaveStart"></div>
@@ -947,6 +1018,23 @@ function renderLeave(week,weekPlan){
       </div>
     </div>
     <div class="card"><div class="ch">Saved leave</div><table class="tbl"><thead><tr><th>Agent</th><th>Start</th><th>End</th><th>Type</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card">
+      <div class="ch">Add holiday rule</div>
+      <div class="note">Example: if the holiday is 5 days and you set 3 fixed OFF dates, the remaining 2 days will be distributed randomly over the selected period based on operational balance.</div>
+      <div class="holiday-grid">
+        <div class="field tight"><label>Holiday name</label><input type="text" id="holidayName" placeholder="Eid, National Day, etc."></div>
+        <div class="field tight"><label>Start</label><input type="date" id="holidayStart"></div>
+        <div class="field tight"><label>End</label><input type="date" id="holidayEnd"></div>
+        <div class="field tight"><label>Fixed OFF days</label><input type="number" id="holidayFixedCount" min="0" value="0"></div>
+        <div class="field tight"><label>Distribution period</label><select id="holidayPeriod"><option value="1">1 week</option><option value="2">2 weeks</option><option value="4">4 weeks</option></select></div>
+        <button class="btn btnp" id="addHoliday">Add holiday</button>
+      </div>
+      <div class="holiday-fixed-grid">
+        <div class="field"><label>Fixed OFF dates</label><input type="text" id="holidayFixedDates" placeholder="2026-04-10, 2026-04-11, 2026-04-12"></div>
+        <div class="small">List the fixed OFF dates separated by commas.</div>
+      </div>
+    </div>
+    <div class="card"><div class="ch">Saved holidays</div><table class="tbl"><thead><tr><th>Holiday</th><th>Start</th><th>End</th><th>Fixed OFF</th><th>Fixed dates</th><th>Distributed</th><th></th></tr></thead><tbody>${holidayRows}</tbody></table></div>
   `;
 }
 
@@ -1097,7 +1185,6 @@ function renderRamadan(){
   ensureRamadanSettings(state);
   const r=state.ramadan;
   const shiftIds=getRamadanShiftIds();
-  const showAssignments=!!r.saved;
   const shiftRows=shiftIds.map(id=>{
     const slot=splitRange(r.times[id]);
     return `<div class="card" style="margin-top:10px">
@@ -1109,10 +1196,12 @@ function renderRamadan(){
       </div>
     </div>`;
   }).join('');
-  const rows=activeAgents().map(a=>`<tr>
+  const rows=state.agents.map(a=>`<tr>
     <td>${a.name}</td>
-    <td>${a.lang}</td>
-    <td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">Regular Shift ${a.shift}</span></td>
+    <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
+    <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
+    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">${preferredOffOptions(a.preferredOff)}</select></td>
+    <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
     <td><select data-id="${a.id}" class="ramadanAssign">
       <option value="auto" ${getRamadanAssignment(a)==='auto'?'selected':''}>Auto from regular shift</option>
       ${shiftIds.map(id=>`<option value="${id}" ${getRamadanAssignment(a)===String(id)?'selected':''}>${r.names[id]} · ${r.times[id]}</option>`).join('')}
@@ -1120,7 +1209,7 @@ function renderRamadan(){
     </select></td>
   </tr>`).join('');
   return `
-    <div class="note">Set the Ramadan shifts here, give them names, add more if you need them, then save. After saving, the agent assignment table will appear below.</div>
+    <div class="note">Use the same master-data style during Ramadan as well. Preferred extra OFF and status are available here too, and choosing Not specified lets the system pick the extra OFF day automatically based on operational needs.</div>
     <div class="rowflex">
       <div class="field"><label>Ramadan mode</label><select id="ramadanEnabled"><option value="false" ${!r.enabled?'selected':''}>Off</option><option value="true" ${r.enabled?'selected':''}>On</option></select></div>
       <div class="field"><label>Start date</label><input type="date" id="ramadanStart" value="${r.start||''}"></div>
@@ -1131,25 +1220,32 @@ function renderRamadan(){
       <button class="btn" id="addRamadanShift">Add another Ramadan shift</button>
       <button class="btn btnp" id="saveRamadan">Save Ramadan setup</button>
     </div>
-    ${showAssignments ? `<div class="card" style="margin-top:12px"><div class="ch">Agent Ramadan assignment</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button><div class="small">Randomly spreads agents between all Ramadan shifts while balancing Arabic-capable and English-only coverage.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Language</th><th>Regular shift</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="warn" style="margin-top:12px">Save the Ramadan setup first. Then the agent assignment table will appear here.</div>`}
+    <div class="card" style="margin-top:12px">
+      <div class="ch">Ramadan team setup</div>
+      <div class="rowflex" style="margin-bottom:10px">
+        <button class="btn btnp" id="autoAssignRamadan">Auto assign by language balance</button>
+        <div class="small">Randomly spreads active agents between all Ramadan shifts while balancing Arabic-capable and English-only coverage.</div>
+      </div>
+      ${!r.saved ? `<div class="warn" style="margin-bottom:10px">Save the Ramadan setup after editing the timings above so the latest shift definitions are applied below.</div>` : ''}
+      <table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th><th>Ramadan shift</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
   `;
 }
 
 function renderTeam(){
-  const rows=state.agents.map(a=>`<tr><td>${a.name}</td><td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">${a.shift===1?'Shift 1':'Shift 2'}</span></td><td>${a.lang}</td><td>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.preferredOff]}</td><td>${a.active?'<span class="pill p-work">Active</span>':'<span class="pill p-off">Inactive</span>'}</td></tr>`).join('');
+  const rows=state.agents.map(a=>`<tr><td>${a.name}</td><td><span class="pill ${a.shift===1?'p-sh1':'p-sh2'}">${a.shift===1?'Shift 1':'Shift 2'}</span></td><td>${a.lang}</td><td>${preferredOffLabel(a.preferredOff)}</td><td>${a.active?'<span class="pill p-work">Active</span>':'<span class="pill p-off">Inactive</span>'}</td></tr>`).join('');
   const sharedLink=currentAgentLink();
-  return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. The app auto-generates the second off for each week and you can still edit exceptions.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred off</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
+  return `<div class="card"><div class="ch">Team setup overview</div><div class="note">Preferred off day is only a planning preference. If you choose Not specified, the app can assign the extra OFF day automatically based on operational needs.</div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card"><div class="ch">Shared agent portal link</div><div class="note">All agents use the same link. They select their own name after opening it.</div><div class="linkbox">${sharedLink}</div></div>`;
 }
 function renderAdmin(){
   const rows=state.agents.map(a=>`<tr>
     <td><input value="${a.name}" data-id="${a.id}" data-field="name" class="agentEdit"></td>
     <td><select data-id="${a.id}" data-field="shift" class="agentEdit"><option value="1" ${a.shift===1?'selected':''}>Shift 1</option><option value="2" ${a.shift===2?'selected':''}>Shift 2</option></select></td>
     <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
-    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">
-      <option value="0" ${a.preferredOff===0?'selected':''}>Sunday</option><option value="1" ${a.preferredOff===1?'selected':''}>Monday</option><option value="2" ${a.preferredOff===2?'selected':''}>Tuesday</option><option value="3" ${a.preferredOff===3?'selected':''}>Wednesday</option><option value="4" ${a.preferredOff===4?'selected':''}>Thursday</option><option value="6" ${a.preferredOff===6?'selected':''}>Saturday</option></select></td>
+    <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">${preferredOffOptions(a.preferredOff)}</select></td>
     <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
   </tr>`).join('');
-  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance, and if Preferred extra OFF is set to Not specified the app will choose the extra OFF day automatically based on the operation.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
   return `
     <div class="card">
       <div class="ch">Admin setup</div>
@@ -1162,15 +1258,27 @@ function renderAdmin(){
     <div class="card"><div class="ch">Data control</div><div class="rowflex"><button class="btn" id="exportJson">Export data</button><button class="btn btnr" id="resetAll">Reset all</button></div><div id="exportBox" style="margin-top:12px"></div></div>
   `;
 }
-function overlapsWeek(l,week){return new Date(l.end)>=week.start && new Date(l.start)<=week.end;}
+function overlapsWeek(l,week){
+  const start=new Date(l.start);
+  let end=new Date(l.end);
+  if(Number(l.distributionWeeks||0)>0){
+    const distributedEnd=new Date(l.start);
+    distributedEnd.setDate(distributedEnd.getDate()+((Number(l.distributionWeeks)||1)*7)-1);
+    if(distributedEnd>end) end=distributedEnd;
+  }
+  return end>=week.start && start<=week.end;
+}
 function setOverride(agentId,date,status){
   const wk=getSelectedWeek(); const key=weekKey(wk.start); state.weekOverrides[key] ||= {}; const k=`${agentId}|${date}`;
   if(status==='CLEAR') delete state.weekOverrides[key][k]; else state.weekOverrides[key][k]={status,reason:'Manual edit'};
+  markRosterSyncChange();
 }
 function bindPageActions(){
-  document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); render();});
-  document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); render();});
-  const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); render(); };
+  document.querySelectorAll('.quickStatus').forEach(el=>el.onchange=(e)=>{const v=e.target.value;if(!v)return; setOverride(Number(e.target.dataset.agent),e.target.dataset.date,v); saveState(); render();});
+  document.querySelectorAll('.removeLeave').forEach(b=>b.onclick=()=>{state.leaves.splice(Number(b.dataset.index),1); markRosterSyncChange(); saveState(); render();});
+  document.querySelectorAll('.removeHoliday').forEach(b=>b.onclick=()=>{ state.holidays ||= []; state.holidays.splice(Number(b.dataset.index),1); markRosterSyncChange(); saveState(); render(); });
+  const addLeave=document.getElementById('addLeave'); if(addLeave) addLeave.onclick=()=>{ const agentId=Number(document.getElementById('leaveAgent').value); const start=document.getElementById('leaveStart').value; const end=document.getElementById('leaveEnd').value||start; const type=document.getElementById('leaveType').value; if(!start) return alert('Please select leave date.'); state.leaves.push({agentId,start,end,type}); markRosterSyncChange(); saveState(); render(); };
+  const addHoliday=document.getElementById('addHoliday'); if(addHoliday) addHoliday.onclick=()=>{ const name=(document.getElementById('holidayName').value||'Holiday').trim(); const start=document.getElementById('holidayStart').value; const end=document.getElementById('holidayEnd').value||start; const fixedCount=Math.max(0, Number(document.getElementById('holidayFixedCount').value||0)); const distributionWeeks=Number(document.getElementById('holidayPeriod').value||1); const fixedRaw=document.getElementById('holidayFixedDates').value||''; if(!start) return alert('Please select the holiday start date.'); const span=getLeaveDates(0,start,end); if(!span.length) return alert('Please choose a valid holiday range.'); if(fixedCount>span.length) return alert('Fixed OFF days cannot be greater than the holiday length.'); const fixedDates=[...new Set(fixedRaw.split(/[\s,]+/).map(x=>x.trim()).filter(Boolean))].filter(ds=>span.includes(ds)).slice(0,fixedCount); if(fixedCount && fixedDates.length<fixedCount) return alert('Please enter the fixed OFF dates inside the holiday range.'); state.holidays ||= []; state.holidays.push({name,start,end,fixedDates,distributionWeeks}); markRosterSyncChange(); saveState(); render(); };
   document.querySelectorAll('.adminSubTab').forEach(el=>el.onclick=()=>{ adminSubTab=el.dataset.sub || 'team'; render(); });
   const addRamadanShift=document.getElementById('addRamadanShift');
   if(addRamadanShift) addRamadanShift.onclick=()=>{
@@ -1179,6 +1287,8 @@ function bindPageActions(){
     state.ramadan.names[nextId]=`Ramadan Shift ${nextId}`;
     state.ramadan.times[nextId]=getSuggestedRamadanTime();
     state.ramadan.saved=false;
+    markRosterSyncChange();
+    saveState();
     render();
   };
   document.querySelectorAll('.removeRamadanShift').forEach(el=>el.onclick=()=>{
@@ -1190,10 +1300,12 @@ function bindPageActions(){
     delete state.ramadan.times[shiftId];
     Object.keys(state.ramadan.agentAssignments||{}).forEach(agentId=>{ if(state.ramadan.agentAssignments[agentId]===shiftId) delete state.ramadan.agentAssignments[agentId]; });
     state.ramadan.saved=false;
+    markRosterSyncChange();
+    saveState();
     render();
   });
-  document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; saveState(); render(); });
-  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; saveState(); render(); });
+  document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; markRosterSyncChange(); saveState(); render(); });
+  document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; markRosterSyncChange(); saveState(); render(); });
   const uploadBreakFile=document.getElementById('uploadBreakFile');
   if(uploadBreakFile) uploadBreakFile.onclick=async ()=>{
     const input=document.getElementById('breakFile');
@@ -1314,6 +1426,7 @@ function bindPageActions(){
     state.ramadan.names=newNames;
     state.ramadan.times=newTimes;
     state.ramadan.saved=true;
+    markRosterSyncChange();
     saveState();
     render();
   };
@@ -1325,6 +1438,7 @@ function bindPageActions(){
       const c=result.counters[id];
       return `${slotName}: ${c.total} total (${c.arabic} Arabic-capable, ${c.english} English-only)`;
     }).join('\n');
+    markRosterSyncChange();
     saveState();
     render();
     alert(`Auto-assigned ${result.updated} active agents for Ramadan.\n${details}`);
@@ -1332,6 +1446,8 @@ function bindPageActions(){
   const autoShiftBalance=document.getElementById('autoShiftBalance');
   if(autoShiftBalance) autoShiftBalance.onclick=()=>{
     const result=autoAssignBalancedShifts();
+    markRosterSyncChange();
+    saveState();
     render();
     alert(
       `Auto-assigned ${result.updated} active agents.\n`+
@@ -1339,7 +1455,7 @@ function bindPageActions(){
       `Shift 2: ${result.counters[2].total} total (${result.counters[2].arabic} Arabic-capable, ${result.counters[2].english} English-only)`
     );
   };
-  const saveOverride=document.getElementById('saveOverride'); if(saveOverride) saveOverride.onclick=()=>{const agentId=Number(document.getElementById('ovAgent').value); const date=document.getElementById('ovDate').value; const status=document.getElementById('ovStatus').value; if(!date) return alert('Choose date first.'); setOverride(agentId,date,status); render();};
+  const saveOverride=document.getElementById('saveOverride'); if(saveOverride) saveOverride.onclick=()=>{const agentId=Number(document.getElementById('ovAgent').value); const date=document.getElementById('ovDate').value; const status=document.getElementById('ovStatus').value; if(!date) return alert('Choose date first.'); setOverride(agentId,date,status); saveState(); render();};
 
   const cloudInput=document.getElementById('cloudMasterKey');
   if(cloudInput) cloudInput.value=cloudStatus.masterKey || '';

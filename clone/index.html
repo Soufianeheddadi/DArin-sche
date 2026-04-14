@@ -235,6 +235,7 @@ function loadState(){
       const parsed=JSON.parse(raw);
       parsed.agents ||= JSON.parse(JSON.stringify(defaultAgents));
       parsed.leaves ||= [];
+      parsed.holidays ||= [];
       parsed.weekOverrides ||= {};
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
@@ -244,7 +245,7 @@ function loadState(){
       return parsed;
     }
   }catch(e){}
-  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],holidays:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
 }
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function ensureBreakPlannerSettings(obj){
@@ -307,18 +308,67 @@ function getLeaveMap(){
   state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
   return map;
 }
+function getHolidayFixedDates(holiday){
+  const allowed=new Set(getLeaveDates(0,holiday.start,holiday.end));
+  return [...new Set([...(holiday.fixedDates||[])].map(x=>String(x||'').trim()).filter(x=>allowed.has(x)))];
+}
+function getHolidayMap(baseLeaveMap){
+  const map={};
+  const leaveMap=baseLeaveMap || getLeaveMap();
+  (state.holidays||[]).forEach((holiday,index)=>{
+    if(!holiday || !holiday.start || !holiday.end) return;
+    const title=String(holiday.name||('Holiday ' + (index+1))).trim();
+    const fixedDates=getHolidayFixedDates(holiday);
+    const totalDays=getLeaveDates(0,holiday.start,holiday.end).length;
+    const randomCount=Math.max(0,totalDays-fixedDates.length);
+    const windowStart=new Date(holiday.start);
+    const windowEnd=new Date(holiday.start);
+    windowEnd.setDate(windowEnd.getDate() + ((Number(holiday.distributionWeeks)||1) * 7) - 1);
+    const pool=[];
+    for(let d=new Date(windowStart); d<=windowEnd; d.setDate(d.getDate()+1)){
+      const ds=fmtDate(d);
+      if(d.getDay()===5 || fixedDates.indexOf(ds)!==-1) continue;
+      pool.push(ds);
+    }
+    activeAgents().forEach(agent=>{
+      fixedDates.forEach(ds=>{
+        if(!leaveMap[`${agent.id}|${ds}`]) map[`${agent.id}|${ds}`]=`${title} · fixed off`;
+      });
+      const ranked=pool.filter(ds=>!leaveMap[`${agent.id}|${ds}`]).map(ds=>{
+        const dow=new Date(ds).getDay();
+        const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+        return {date:ds, score:operationBias + stableOffNoise(String(agent.id)+'-'+String(index),ds)};
+      }).sort((a,b)=>a.score-b.score).slice(0,randomCount);
+      ranked.forEach(item=>{
+        if(!map[`${agent.id}|${item.date}`]) map[`${agent.id}|${item.date}`]=`${title} · distributed off`;
+      });
+    });
+  });
+  return map;
+}
 function getLeaveDates(agentId,start,end){
   const out=[]; let d=new Date(start); const e=new Date(end); while(d<=e){out.push(fmtDate(d)); d.setDate(d.getDate()+1);} return out;
 }
 function activeAgents(){return state.agents.filter(a=>a.active);}
 function getAgentById(id){return state.agents.find(a=>a.id===id);}
+function normalizePreferredOff(value){ var num=Number(value); return [0,1,2,3,4,6].indexOf(num)!==-1 ? num : -1; }
+function stableOffNoise(agentId,dateStr){
+  var seed=String(agentId) + '|' + String(dateStr) + '|' + String(state.month||'');
+  var hash=0;
+  for(var i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
+  return Math.abs(hash%1000)/1000;
+}
 function autoSecondOffDate(agent,week){
   if(countWeeklyLeaves(agent.id,week)>=2) return null; // leave already gives rest
   let best=null;
+  var preferred=normalizePreferredOff(agent.preferredOff);
+  var hasPreferred=preferred!==-1;
   for(let i=0;i<7;i++){
     const d=new Date(week.start); d.setDate(d.getDate()+i); const dow=d.getDay();
     if(dow===5) continue; // Friday fixed off handled separately
-    const score=(dow===agent.preferredOff?0:2)+(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
+    const preferenceBias=hasPreferred ? (dow===preferred?0:2) : stableOffNoise(agent.id,fmtDate(d));
+    const score=operationBias+preferenceBias;
     if(!best || score<best.score) best={date:fmtDate(d),score};
   }
   return best?best.date:null;
@@ -328,6 +378,7 @@ function countWeeklyLeaves(agentId,week){
 }
 function getWeekPlan(week){
   const leaveMap=getLeaveMap();
+  const holidayMap=getHolidayMap(leaveMap);
   const overrides=state.weekOverrides[weekKey(week.start)]||{};
   const plan={};
   activeAgents().forEach(agent=>{
@@ -336,6 +387,7 @@ function getWeekPlan(week){
       const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const k=`${agent.id}|${ds}`;
       let status='WORK'; let reason='';
       if(d.getDay()===5){status='OFF'; reason='Friday fixed';}
+      else if(holidayMap[k]){status='OFF'; reason=holidayMap[k];}
       else if(leaveMap[k]){status='LEAVE'; reason=leaveMap[k];}
       else if(secondOff && ds===secondOff){status='OFF'; reason='Weekly off';}
       if(overrides[k]){status=overrides[k].status; reason=overrides[k].reason||'Manual edit';}
@@ -671,7 +723,8 @@ function draw(dir){
       var fri=dow===5;
       spill=fri?'<span class="pill p-fri">Friday Off</span>':'<span class="pill p-off">Day Off</span>';
       cls+=' offday'; if(isT) cls+=' today';
-      body='<div class="offrsn">'+(fri?'Center closed - fixed off':'Rotation day off')+'</div>';
+      var offReason=plan.reason || (fri?'Center closed - fixed off':'Rotation day off');
+      body='<div class="offrsn">'+offReason+'</div>';
     }
     cards.push('<div class="'+cls+'">'+(isT?'<div class="tbadge">TODAY</div>':'')
       +'<div class="dchdr"><div><div class="dow">'+DAYS[dow]+'</div><div class="ddate">'+d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+'</div></div>'+spill+'</div>'
