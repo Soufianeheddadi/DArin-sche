@@ -17,11 +17,13 @@ body.sidebar-collapsed .brand h2,
 body.sidebar-collapsed .brand p,
 body.sidebar-collapsed .foot,
 body.sidebar-collapsed .nb .txt{display:none}
+body.sidebar-collapsed .brand-head{justify-content:center}
 body.sidebar-collapsed .nb{padding:11px 8px;display:flex;justify-content:center}
 .layout{display:flex;min-height:100vh}
 .side{width:230px;background:var(--nav);color:#fff;display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(14px);border-right:1px solid var(--line);position:fixed;left:0;top:0;bottom:0;z-index:40;transition:width .25s ease}
 .brand{padding:18px 16px;border-bottom:1px solid rgba(148,163,184,.2)}
-.brand h2{font-size:16px;margin-bottom:4px}.brand p{font-size:11px;color:rgba(226,232,240,.64);line-height:1.45}
+.brand-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.brand h2{font-size:16px;margin-bottom:0}.brand p{font-size:11px;color:rgba(226,232,240,.64);line-height:1.45}
 .nb{display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;color:rgba(226,232,240,.75);text-align:left;cursor:pointer;font-size:12px;transition:all .2s ease}
 .nb .ico{display:inline-flex;align-items:center;justify-content:center;min-width:20px;font-size:15px}
 .nb.on,.nb:hover{background:rgba(59,130,246,.22);color:#fff;transform:translateX(2px)}
@@ -30,9 +32,9 @@ body.sidebar-collapsed .nb{padding:11px 8px;display:flex;justify-content:center}
 .top{background:rgba(15,23,42,.58);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;backdrop-filter:blur(12px);position:sticky;top:0;z-index:30}
 .top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
 .controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;width:100%;justify-content:flex-end}
-.burger{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:transparent;color:inherit;border-radius:8px;cursor:pointer;transition:all .2s ease;box-shadow:none;padding:0;margin:0}
+.burger{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.06);color:inherit;border-radius:8px;cursor:pointer;transition:all .2s ease;box-shadow:none;padding:0;margin:0;flex-shrink:0}
 .burger:hover{background:rgba(59,130,246,.16)}
-body.light-theme .burger{color:#0f172a}
+body.light-theme .burger{color:#0f172a;background:rgba(255,255,255,.5)}
 .theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px);margin-left:auto}
 .theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#facc15,#fb923c);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
 .theme-toggle.light .thumb{transform:translateX(0);background:linear-gradient(120deg,#facc15,#fb923c)}
@@ -152,7 +154,10 @@ body.light-theme .heatcell{color:#0f172a}
 <div class="layout">
   <aside class="side">
     <div class="brand">
-      <h2>Jaidah Automotive</h2>
+      <div class="brand-head">
+        <h2>Jaidah Automotive</h2>
+        <button class="burger" id="burgerToggle" aria-label="Toggle menu">☰</button>
+      </div>
       <p>CX roster planner<br>Friday fixed off · weekly auto-plan · leave-driven edits</p>
     </div>
     <button class="nb on" data-page="dashboard"><span class="ico">🏠</span><span class="txt">Dashboard</span></button>
@@ -165,12 +170,9 @@ body.light-theme .heatcell{color:#0f172a}
   </aside>
   <main class="main">
     <div class="top">
-      <div style="display:flex;align-items:center;gap:8px;min-width:0">
-        <button class="burger" id="burgerToggle" aria-label="Toggle menu">☰</button>
-        <div>
-          <h1 id="pageTitle">Dashboard</h1>
-          <div class="sub">Selected week drives the roster. Friday is always OFF. App generates the week, you edit only where needed.</div>
-        </div>
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="sub">Selected week drives the roster. Friday is always OFF. App generates the week, you edit only where needed.</div>
       </div>
       <div class="controls">
         <div class="field"><label>Month</label><input type="month" id="monthPicker"></div>
