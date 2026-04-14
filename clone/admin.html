@@ -21,6 +21,12 @@ button,input,select,textarea{font:inherit}
 .top{background:rgba(15,23,42,.58);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;backdrop-filter:blur(12px)}
 .top h1{font-size:18px;margin-bottom:4px}.sub{font-size:11px;color:var(--muted)}
 .controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px)}
+.theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#60a5fa,#22d3ee);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
+.theme-toggle.light .thumb{transform:translateX(42px);background:linear-gradient(120deg,#facc15,#fb923c)}
+.theme-toggle button{position:relative;z-index:1;width:40px;height:30px;border:none;background:transparent;color:#cbd5e1;border-radius:999px;cursor:pointer;font-size:15px;transition:color .2s ease,transform .2s ease}
+.theme-toggle button:hover{transform:scale(1.05)}
+.theme-toggle button.active{color:#fff}
 .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
 .field input,.field select,.field textarea{padding:8px 10px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;min-width:120px;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
@@ -67,6 +73,9 @@ button,input,select,textarea{font:inherit}
 .exporttxt{width:100%;height:200px;border:1px solid rgba(148,163,184,.38);border-radius:10px;padding:10px;background:rgba(15,23,42,.72);color:#dbeafe;resize:vertical}
 .exporttxt:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18)}
 body.light-theme .top{background:rgba(255,255,255,.78);border-bottom-color:rgba(100,116,139,.2)}
+body.light-theme .theme-toggle{background:rgba(255,255,255,.8);border-color:rgba(100,116,139,.25)}
+body.light-theme .theme-toggle button{color:#475569}
+body.light-theme .theme-toggle button.active{color:#0f172a}
 body.light-theme .side{color:#0f172a;background:rgba(255,255,255,.78)}
 body.light-theme .brand h2{color:#0f172a}
 body.light-theme .brand p{color:#475569}
@@ -131,7 +140,11 @@ body.agent-mode .top h1{margin-bottom:0}
         <div class="field"><label>Week</label><select id="weekPicker"></select></div>
         <button class="btn" id="prevWeek">← Week</button>
         <button class="btn" id="nextWeek">Week →</button>
-        <button class="btn" id="themeToggle">Light mode</button>
+        <div class="theme-toggle" id="themeToggle">
+          <div class="thumb"></div>
+          <button type="button" id="themeMoon" aria-label="Dark mode">☾</button>
+          <button type="button" id="themeSun" aria-label="Light mode">☀</button>
+        </div>
       </div>
     </div>
     <div class="pg" id="app"></div>
@@ -180,13 +193,20 @@ function currentTheme(){
 }
 function applyTheme(theme){
   document.body.classList.toggle('light-theme', theme==='light');
-  const btn=document.getElementById('themeToggle');
-  if(btn) btn.textContent = theme==='light' ? 'Dark mode' : 'Light mode';
+  const wrap=document.getElementById('themeToggle');
+  const moon=document.getElementById('themeMoon');
+  const sun=document.getElementById('themeSun');
+  if(wrap) wrap.classList.toggle('light', theme==='light');
+  if(moon) moon.classList.toggle('active', theme==='dark');
+  if(sun) sun.classList.toggle('active', theme==='light');
+}
+function setTheme(theme){
+  localStorage.setItem(THEME_KEY,theme);
+  applyTheme(theme);
 }
 function toggleTheme(){
   const next=currentTheme()==='light' ? 'dark' : 'light';
-  localStorage.setItem(THEME_KEY,next);
-  applyTheme(next);
+  setTheme(next);
 }
 applyTheme(currentTheme());
 
@@ -762,7 +782,8 @@ function bindPageActions(){
   };
   const exportBtn=document.getElementById('exportJson'); if(exportBtn) exportBtn.onclick=()=>{document.getElementById('exportBox').innerHTML=`<textarea class="exporttxt">${JSON.stringify(state,null,2)}</textarea>`;};
   const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
-  const themeToggle=document.getElementById('themeToggle'); if(themeToggle) themeToggle.onclick=()=>toggleTheme();
+  const moon=document.getElementById('themeMoon'); if(moon) moon.onclick=()=>setTheme('dark');
+  const sun=document.getElementById('themeSun'); if(sun) sun.onclick=()=>setTheme('light');
 }
 
 window.addEventListener('storage', e=>{

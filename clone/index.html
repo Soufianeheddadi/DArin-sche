@@ -15,8 +15,12 @@ body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--lin
 .pbox select option,.wnav select option{background:#0f172a;color:#dbeafe}
 .topbar{position:sticky;top:0;z-index:20;padding:10px 14px;background:linear-gradient(135deg,rgba(15,23,42,.65),rgba(30,41,59,.45));border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;backdrop-filter:blur(12px)}
 .topbar .ttl{font-size:12px;color:#cbd5e1;font-weight:700;letter-spacing:.04em}
-.themebtn{font-size:11px;color:#dbeafe;background:rgba(147,197,253,.08);border:1px solid rgba(147,197,253,.35);border-radius:8px;padding:5px 11px;cursor:pointer;font-family:Arial,sans-serif;transition:all .2s ease}
-.themebtn:hover{background:rgba(96,165,250,.2);transform:translateY(-1px)}
+.theme-toggle{position:relative;display:inline-flex;align-items:center;background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.28);border-radius:999px;padding:4px;gap:4px;min-width:94px;backdrop-filter:blur(10px)}
+.theme-toggle .thumb{position:absolute;top:4px;left:4px;width:40px;height:30px;border-radius:999px;background:linear-gradient(120deg,#60a5fa,#22d3ee);box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .25s ease}
+.theme-toggle.light .thumb{transform:translateX(42px);background:linear-gradient(120deg,#facc15,#fb923c)}
+.theme-toggle button{position:relative;z-index:1;width:40px;height:30px;border:none;background:transparent;color:#cbd5e1;border-radius:999px;cursor:pointer;font-size:15px;transition:color .2s ease,transform .2s ease}
+.theme-toggle button:hover{transform:scale(1.05)}
+.theme-toggle button.active{color:#fff}
 .header{background:linear-gradient(135deg,rgba(30,41,59,.72),rgba(15,23,42,.76));color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:0 0 14px 14px;backdrop-filter:blur(14px)}
 .header h1{font-size:15px;font-weight:700;margin:0}
 .header .sub{font-size:11px;color:rgba(226,232,240,.76);margin-top:2px}
@@ -78,7 +82,9 @@ body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--lin
 @keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
 body.light-theme .topbar{background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.72))}
 body.light-theme .topbar .ttl{color:#334155}
-body.light-theme .themebtn{color:#0f172a;background:rgba(255,255,255,.75);border-color:rgba(100,116,139,.3)}
+body.light-theme .theme-toggle{background:rgba(255,255,255,.8);border-color:rgba(100,116,139,.25)}
+body.light-theme .theme-toggle button{color:#475569}
+body.light-theme .theme-toggle button.active{color:#0f172a}
 body.light-theme .header{background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(219,234,254,.78));color:#0f172a}
 body.light-theme .header .sub{color:#475569}
 body.light-theme .agbadge{color:#1d4ed8}
@@ -108,7 +114,11 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 
 <div class="topbar">
   <span class="ttl">JAIDAH CX SCHEDULER</span>
-  <button class="themebtn" id="themeToggleGlobal" onclick="toggleTheme()">Light mode</button>
+  <div class="theme-toggle" id="themeToggleGlobal">
+    <div class="thumb"></div>
+    <button type="button" id="themeMoonGlobal" onclick="setTheme('dark')" aria-label="Dark mode">☾</button>
+    <button type="button" id="themeSunGlobal" onclick="setTheme('light')" aria-label="Light mode">☀</button>
+  </div>
 </div>
 
 <div class="picker" id="pickerDiv">
@@ -140,7 +150,11 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
     <div style="display:flex;align-items:center;gap:10px">
       <span class="agbadge" id="agBadge"></span>
       <button class="chgbtn" onclick="goBack()">Change</button>
-      <button class="chgbtn" id="themeToggleApp" onclick="toggleTheme()">Light mode</button>
+      <div class="theme-toggle" id="themeToggleApp">
+        <div class="thumb"></div>
+        <button type="button" id="themeMoonApp" onclick="setTheme('dark')" aria-label="Dark mode">☾</button>
+        <button type="button" id="themeSunApp" onclick="setTheme('light')" aria-label="Light mode">☀</button>
+      </div>
     </div>
   </div>
   <div class="pg" id="pgWrap">
@@ -308,20 +322,26 @@ function currentTheme(){
   return localStorage.getItem(THEME_KEY) || 'dark';
 }
 function syncThemeButtons(theme){
-  var label = theme==='light' ? 'Dark mode' : 'Light mode';
-  var b1 = document.getElementById('themeToggleGlobal');
-  var b2 = document.getElementById('themeToggleApp');
-  if(b1) b1.textContent = label;
-  if(b2) b2.textContent = label;
+  ['Global','App'].forEach(function(scope){
+    var wrap = document.getElementById('themeToggle' + scope);
+    var moon = document.getElementById('themeMoon' + scope);
+    var sun = document.getElementById('themeSun' + scope);
+    if(wrap) wrap.classList.toggle('light', theme==='light');
+    if(moon) moon.classList.toggle('active', theme==='dark');
+    if(sun) sun.classList.toggle('active', theme==='light');
+  });
 }
 function applyTheme(theme){
   document.body.classList.toggle('light-theme', theme==='light');
   syncThemeButtons(theme);
 }
+function setTheme(theme){
+  localStorage.setItem(THEME_KEY,theme);
+  applyTheme(theme);
+}
 function toggleTheme(){
   var next = currentTheme()==='light' ? 'dark' : 'light';
-  localStorage.setItem(THEME_KEY,next);
-  applyTheme(next);
+  setTheme(next);
 }
 
 function syncAdminEntryLink(){
