@@ -10,13 +10,20 @@
 body{font-family:Arial,sans-serif;background:radial-gradient(1300px 720px at 10% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font-size:13px}
 body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--card:rgba(255,255,255,.9);--card-soft:rgba(255,255,255,.84);--ink:#0f172a;--muted:#475569;--line:rgba(100,116,139,.25);--nav:rgba(255,255,255,.82);--brand:#2563eb;--ok:#166534;--warn:#92400e;--bad:#991b1b;--off:rgba(203,213,225,.45);--leave:rgba(251,146,60,.22);--fixed:rgba(147,197,253,.35);--work:rgba(134,239,172,.32);background:radial-gradient(1200px 700px at 0% -10%,#bfdbfe 0%,transparent 58%),radial-gradient(1000px 700px at 100% 0%,#dbeafe 0%,transparent 55%),linear-gradient(160deg,#eff6ff,#f8fafc)}
 button,input,select,textarea{font:inherit}
-body.sidebar-collapsed .side{transform:translateX(-100%)}
-body.sidebar-collapsed .main{margin-left:0}
+body.sidebar-collapsed .side{width:72px;transform:none}
+body.sidebar-collapsed .main{margin-left:72px}
+body.sidebar-collapsed .brand{padding:14px 8px;text-align:center}
+body.sidebar-collapsed .brand h2,
+body.sidebar-collapsed .brand p,
+body.sidebar-collapsed .foot,
+body.sidebar-collapsed .nb .txt{display:none}
+body.sidebar-collapsed .nb{padding:11px 8px;display:flex;justify-content:center}
 .layout{display:flex;min-height:100vh}
-.side{width:230px;background:var(--nav);color:#fff;display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(14px);border-right:1px solid var(--line);position:fixed;left:0;top:0;bottom:0;z-index:40;transition:transform .25s ease}
+.side{width:230px;background:var(--nav);color:#fff;display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(14px);border-right:1px solid var(--line);position:fixed;left:0;top:0;bottom:0;z-index:40;transition:width .25s ease}
 .brand{padding:18px 16px;border-bottom:1px solid rgba(148,163,184,.2)}
 .brand h2{font-size:16px;margin-bottom:4px}.brand p{font-size:11px;color:rgba(226,232,240,.64);line-height:1.45}
-.nb{display:block;width:100%;padding:11px 16px;background:none;border:none;color:rgba(226,232,240,.75);text-align:left;cursor:pointer;font-size:12px;transition:all .2s ease}
+.nb{display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;color:rgba(226,232,240,.75);text-align:left;cursor:pointer;font-size:12px;transition:all .2s ease}
+.nb .ico{display:inline-flex;align-items:center;justify-content:center;min-width:20px;font-size:15px}
 .nb.on,.nb:hover{background:rgba(59,130,246,.22);color:#fff;transform:translateX(2px)}
 .foot{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(148,163,184,.2);font-size:11px;color:rgba(226,232,240,.55)}
 .main{flex:1;display:flex;flex-direction:column;margin-left:230px;min-width:0;transition:margin-left .25s ease}
@@ -106,7 +113,7 @@ body.light-theme .p-sh2{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 body.light-theme .linkbox{background:rgba(255,255,255,.84);color:#334155}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:1100px){.weekgrid{grid-template-columns:220px repeat(7,minmax(150px,1fr));overflow:auto}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.layout{display:block}.side{width:230px}.main{margin-left:0}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+@media(max-width:700px){.layout{display:block}.side{width:230px}.main{margin-left:72px}.grid4{grid-template-columns:1fr}.leave-grid{grid-template-columns:1fr}.top{align-items:flex-start}}
 
 body.agent-mode .side{display:none}
 body.agent-mode .top{align-items:center}
@@ -147,12 +154,12 @@ body.light-theme .heatcell{color:#0f172a}
       <h2>Jaidah Automotive</h2>
       <p>CX roster planner<br>Friday fixed off · weekly auto-plan · leave-driven edits</p>
     </div>
-    <button class="nb on" data-page="dashboard">Dashboard</button>
-    <button class="nb" data-page="weekly">Weekly Planner</button>
-    <button class="nb" data-page="leave">Leave Control</button>
-    <button class="nb" data-page="breaks">Break Control</button>
-    <button class="nb" data-page="team">Team Setup</button>
-    <button class="nb" data-page="admin">Admin</button>
+    <button class="nb on" data-page="dashboard"><span class="ico">🏠</span><span class="txt">Dashboard</span></button>
+    <button class="nb" data-page="weekly"><span class="ico">📅</span><span class="txt">Weekly Planner</span></button>
+    <button class="nb" data-page="leave"><span class="ico">🗓️</span><span class="txt">Leave Control</span></button>
+    <button class="nb" data-page="breaks"><span class="ico">☕</span><span class="txt">Break Control</span></button>
+    <button class="nb" data-page="team"><span class="ico">👥</span><span class="txt">Team Setup</span></button>
+    <button class="nb" data-page="admin"><span class="ico">⚙️</span><span class="txt">Admin</span></button>
     <div class="foot">Built for your CX operation<br>Auto-generate first, edit only when needed</div>
   </aside>
   <main class="main">
