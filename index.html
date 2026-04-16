@@ -7,8 +7,20 @@
 <style>
 :root{--bg:#070b14;--bg2:#0b1220;--text:#e5edf7;--muted:#95a4ba;--line:rgba(165,180,252,.2);--glass:rgba(17,25,40,.58);--glass-soft:rgba(30,41,59,.42);--brand:#60a5fa;--brand-2:#22d3ee}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:radial-gradient(1400px 700px at 15% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--text);font-size:13px;min-height:100vh}
+body{font-family:Arial,sans-serif;background:radial-gradient(1400px 700px at 15% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--text);font-size:13px;min-height:100vh;position:relative;overflow-x:hidden}
 body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--text:#0f172a;--muted:#475569;--line:rgba(100,116,139,.24);--glass:rgba(255,255,255,.82);--glass-soft:rgba(255,255,255,.76);--brand:#2563eb;--brand-2:#0891b2;background:radial-gradient(1200px 700px at 0% -10%,#bfdbfe 0%,transparent 58%),radial-gradient(1000px 700px at 100% 0,#dbeafe 0%,transparent 55%),linear-gradient(160deg,#eff6ff,#f8fafc)}
+.bg-orbs{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.35;animation:float 25s infinite ease-in-out}
+.orb1{width:500px;height:500px;background:radial-gradient(circle,rgba(96,165,250,.6),transparent 70%);top:10%;left:5%;animation-duration:28s;animation-delay:-5s}
+.orb2{width:400px;height:400px;background:radial-gradient(circle,rgba(34,211,238,.5),transparent 70%);top:60%;right:10%;animation-duration:32s;animation-delay:-12s}
+.orb3{width:600px;height:600px;background:radial-gradient(circle,rgba(139,92,246,.4),transparent 70%);bottom:15%;left:25%;animation-duration:35s;animation-delay:-20s}
+.orb4{width:350px;height:350px;background:radial-gradient(circle,rgba(59,130,246,.55),transparent 70%);top:35%;right:30%;animation-duration:30s;animation-delay:-8s}
+body.light-theme .orb1{background:radial-gradient(circle,rgba(37,99,235,.25),transparent 70%)}
+body.light-theme .orb2{background:radial-gradient(circle,rgba(8,145,178,.22),transparent 70%)}
+body.light-theme .orb3{background:radial-gradient(circle,rgba(79,70,229,.18),transparent 70%)}
+body.light-theme .orb4{background:radial-gradient(circle,rgba(59,130,246,.28),transparent 70%)}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-50px) scale(1.1)}50%{transform:translate(-40px,30px) scale(0.95)}75%{transform:translate(50px,40px) scale(1.05)}}
+.topbar,.picker,.app{position:relative;z-index:1}
 .pbox input,.pbox select,.pbox textarea,.wnav select{transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
 .pbox input:focus,.pbox select:focus,.pbox textarea:focus,.wnav select:focus{outline:none;border-color:rgba(56,189,248,.72);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.85)}
 .pbox input::placeholder,.pbox textarea::placeholder{color:#8ba0b8}
@@ -117,9 +129,23 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(max-width:800px){.gateway{grid-template-columns:1fr}}
 @media(max-width:600px){.mets{grid-template-columns:repeat(2,1fr)}.days{grid-template-columns:1fr 1fr}}
+
+  #toastContainer { position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; }
+  .toast { min-width: 250px; background: #333; color: #fff; padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 14px; opacity: 0; transform: translateY(20px); transition: all 0.3s ease; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .toast.toast-success { background: #1a7f37; }
+  .toast.toast-error { background: #d1242f; }
+  .toast.toast-info { background: #0969da; }
+  .toast.show { opacity: 1; transform: translateY(0); }
 </style>
 </head>
 <body>
+
+<div class="bg-orbs">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="orb orb4"></div>
+</div>
 
 <div class="topbar">
   <div class="topbar-left">
@@ -184,6 +210,23 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
 </div>
 
 <script>
+
+const toastContainer = document.createElement('div');
+toastContainer.id = 'toastContainer';
+document.body.appendChild(toastContainer);
+
+function showToast(msg, type='info', duration=3000) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.innerHTML = '<span>' + msg + '</span>';
+  toastContainer.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 300);
+  }, duration);
+}
+
 const defaultAgents=[
 {id:1,name:'Jofferson Nucup',lang:'English',shift:1,active:true,preferredOff:2},
 {id:2,name:'Ghizlen',lang:'English/Arabic',shift:1,active:true,preferredOff:0},
@@ -632,10 +675,10 @@ function goAgent(){
   st = loadState();
   state = st;
   var id = Number(document.getElementById('agSel').value);
-  if(!id){ alert('Please select your name.'); return; }
+  if(!id){ showToast('Please select your name.', 'error'); return; }
   curAgent = id;
   var a = st.agents.find(function(x){ return x.id===id; });
-  if(!a){ alert('This agent is not available yet.'); return; }
+  if(!a){ showToast('This agent is not available yet.', 'error'); return; }
   document.getElementById('agBadge').textContent = a.name;
   document.getElementById('pickerDiv').style.display = 'none';
   document.getElementById('appDiv').style.display = 'block';

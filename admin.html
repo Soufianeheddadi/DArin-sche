@@ -7,8 +7,20 @@
 <style>
 :root{--bg:#070b14;--bg2:#0b1220;--card:rgba(17,25,40,.58);--card-soft:rgba(30,41,59,.42);--ink:#e5edf7;--muted:#9fb0c5;--line:rgba(148,163,184,.23);--nav:rgba(15,23,42,.8);--brand:#3b82f6;--ok:#86efac;--warn:#fde68a;--bad:#fecaca;--off:rgba(71,85,105,.28);--leave:rgba(180,83,9,.2);--fixed:rgba(37,99,235,.2);--work:rgba(22,163,74,.18)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:radial-gradient(1300px 720px at 10% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font-size:13px}
+body{font-family:Arial,sans-serif;background:radial-gradient(1300px 720px at 10% -10%,#1f2a44 0%,transparent 60%),radial-gradient(1000px 700px at 100% 0,#12233e 0%,transparent 50%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font-size:13px;position:relative;overflow-x:hidden}
 body.light-theme{--bg:#f1f5f9;--bg2:#dbeafe;--card:rgba(255,255,255,.9);--card-soft:rgba(255,255,255,.84);--ink:#0f172a;--muted:#475569;--line:rgba(100,116,139,.25);--nav:rgba(255,255,255,.82);--brand:#2563eb;--ok:#166534;--warn:#92400e;--bad:#991b1b;--off:rgba(203,213,225,.45);--leave:rgba(251,146,60,.22);--fixed:rgba(147,197,253,.35);--work:rgba(134,239,172,.32);background:radial-gradient(1200px 700px at 0% -10%,#bfdbfe 0%,transparent 58%),radial-gradient(1000px 700px at 100% 0%,#dbeafe 0%,transparent 55%),linear-gradient(160deg,#eff6ff,#f8fafc)}
+.bg-orbs{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.35;animation:float 25s infinite ease-in-out}
+.orb1{width:500px;height:500px;background:radial-gradient(circle,rgba(96,165,250,.6),transparent 70%);top:10%;left:5%;animation-duration:28s;animation-delay:-5s}
+.orb2{width:400px;height:400px;background:radial-gradient(circle,rgba(34,211,238,.5),transparent 70%);top:60%;right:10%;animation-duration:32s;animation-delay:-12s}
+.orb3{width:600px;height:600px;background:radial-gradient(circle,rgba(139,92,246,.4),transparent 70%);bottom:15%;left:25%;animation-duration:35s;animation-delay:-20s}
+.orb4{width:350px;height:350px;background:radial-gradient(circle,rgba(59,130,246,.55),transparent 70%);top:35%;right:30%;animation-duration:30s;animation-delay:-8s}
+body.light-theme .orb1{background:radial-gradient(circle,rgba(37,99,235,.25),transparent 70%)}
+body.light-theme .orb2{background:radial-gradient(circle,rgba(8,145,178,.22),transparent 70%)}
+body.light-theme .orb3{background:radial-gradient(circle,rgba(79,70,229,.18),transparent 70%)}
+body.light-theme .orb4{background:radial-gradient(circle,rgba(59,130,246,.28),transparent 70%)}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-50px) scale(1.1)}50%{transform:translate(-40px,30px) scale(0.95)}75%{transform:translate(50px,40px) scale(1.05)}}
+.layout,.side,.main{position:relative;z-index:1}
 button,input,select,textarea{font:inherit}
 body.sidebar-collapsed .side{width:72px;transform:none}
 body.sidebar-collapsed .main{margin-left:72px}
@@ -44,7 +56,7 @@ body.light-theme .burger{color:#0f172a;background:rgba(255,255,255,.5)}
 .theme-toggle button.active{color:#fff}
 .theme-toggle .moon-icon{display:inline-block;transform:scaleX(-1) rotate(-18deg)}
 .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
-.field input,.field select,.field textarea{padding:8px 10px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;min-width:120px;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
+.field input,.field select,.field textarea{padding:8px 10px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;min-width:140px;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
 .field input::placeholder,.field textarea::placeholder{color:#8ba0b8}
 .field select option{background:#0f172a;color:#dbeafe}
@@ -165,6 +177,12 @@ body.light-theme .heatcell{color:#0f172a}
 </style>
 </head>
 <body>
+<div class="bg-orbs">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="orb orb4"></div>
+</div>
 <div class="layout">
   <aside class="side">
     <div class="brand">
@@ -590,6 +608,22 @@ function getHolidayMap(baseLeaveMap){
 }
 function activeAgents(){return state.agents.filter(a=>a.active);}
 function getAgentById(id){return state.agents.find(a=>a.id===id);}
+function deleteAgent(agentId){
+  state.agents=state.agents.filter(a=>a.id!==agentId);
+  Object.keys(state.weekOverrides||{}).forEach(wk=>{
+    const wkOverrides=state.weekOverrides[wk];
+    Object.keys(wkOverrides).forEach(key=>{ if(key.startsWith(agentId+'|')) delete wkOverrides[key]; });
+  });
+  Object.keys(state.shiftOverrides||{}).forEach(key=>{ if(key.startsWith(agentId+'|')) delete state.shiftOverrides[key]; });
+  Object.keys(state.breakOverrides||{}).forEach(key=>{ if(key.startsWith(agentId+'|')) delete state.breakOverrides[key]; });
+  state.leaves=(state.leaves||[]).filter(l=>l.agentId!==agentId);
+  if(state.ramadan && state.ramadan.agentAssignments) delete state.ramadan.agentAssignments[agentId];
+  if(state.leavePlannerData) delete state.leavePlannerData[agentId];
+  markRosterSyncChange();
+  saveState();
+  render();
+  alert(`Agent deleted successfully.`);
+}
 function getAgentLink(agentId){return currentAgentLink();}
 function countWeeklyLeaves(agentId,week){
   const leaveMap=getLeaveMap(); let c=0; for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); if(leaveMap[`${agentId}|${fmtDate(d)}`]) c++; } return c;
@@ -1361,10 +1395,6 @@ function renderLeavePlanResult(r){
       :`Your carryover and 2026 entitlement (<b>${r.fullYearPool} days</b>) are sufficient to cover the full requirement of <b>${r.totalRequired} days</b> with paid leave only. No unpaid leave or payroll recovery required, provided the plan is executed as scheduled.`;
     calcLine=`Entitlement: <b>${r.entitlement} days</b> (${r.yearsOfService>=5?'after':'first'} 5 yrs, ${r.schedule==='6day'?'6-day':'5-day'} schedule) &nbsp;·&nbsp; Derived carryover 2025: <b>${r.derivedCarryover} days</b> &nbsp;·&nbsp; Full pool: <b>${r.fullYearPool} days</b> &nbsp;·&nbsp; Required: <b>${r.totalRequired} days</b> (${r.entitlement}+12) &nbsp;·&nbsp; Taken YTD: <b>${r.takenYtd} days</b>`;
   }
-  const co=r.derivedCarryover;
-  const coColor=co>0?'rgba(56,189,248,.25)':co===0?'rgba(148,163,184,.2)':'rgba(251,191,36,.25)';
-  const coBorder=co>0?'rgba(56,189,248,.5)':co===0?'rgba(148,163,184,.35)':'rgba(251,191,36,.5)';
-  const coValueColor=co>0?'#38bdf8':co===0?'var(--muted)':'var(--warn)';
   return `<div class="card"><div class="ch">Your result <span style="margin-left:8px;padding:2px 10px;border-radius:999px;font-size:11px;background:${r.unpaidNeeded===0?'rgba(22,163,74,.3)':r.unpaidNeeded<=5?'rgba(146,64,14,.35)':'rgba(153,27,27,.35)'}">${statusLabel}</span></div>
   ${r.joinedIn2026?'':`<div class="grid4" style="margin-bottom:14px">
     <div class="met"><div class="l">Annual entitlement</div><div class="v">${r.entitlement}</div><div class="s">working days</div></div>
@@ -1373,25 +1403,24 @@ function renderLeavePlanResult(r){
     <div class="met"><div class="l">Unpaid leave needed</div><div class="v" style="color:${r.unpaidNeeded>0?'var(--bad)':'var(--ok)'}">${r.unpaidNeeded}</div><div class="s">days</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    <div class="card" style="margin-bottom:0;border:2px solid ${coBorder};background:${coColor}">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Estimated carryover from 2025</div>
-      <div style="font-size:36px;font-weight:800;color:${coValueColor}">${co>=0?'+':''}${co} days</div>
-      <div class="small" style="margin-top:6px;line-height:1.6">${co>0?`You brought <b>${co} days</b> forward from 2025.`:co===0?`No days carried from 2025 — your balance exactly matches accrual.`:`Your current balance is lower than expected accrual — you may have had a negative start to 2025.`}</div>
+    <div class="card" style="margin-bottom:0;border:2px solid rgba(74,222,128,.35);background:rgba(34,197,94,.14)">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Paid leave available</div>
+      <div style="font-size:40px;font-weight:800;color:var(--ok)">${r.paidAvailable} days</div>
+      <div class="small" style="margin-top:6px;line-height:1.6"><b>Paid leave pool</b> you can still use in 2026 based on derived carryover and current policy rules.</div>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;border-top:1px solid var(--line);padding-top:6px">
-        Current balance &nbsp;<b>${r.currentBalance}d</b><br>
-        + Leave taken YTD &nbsp;<b>+${r.takenYtd}d</b><br>
-        − Accrued so far in 2026 &nbsp;<b>−${r.accruedYtd}d</b><br>
-        <span style="font-weight:700;color:${coValueColor}">= ${co>=0?'+':''}${co}d carryover</span>
+        Full pool (carryover + entitlement) &nbsp;<b>${r.fullYearPool}d</b><br>
+        Already taken &nbsp;<b>−${r.takenYtd}d</b><br>
+        Remaining paid pool &nbsp;<b style="color:var(--ok)">${r.remainingPool}d</b>
       </div>
     </div>
-    <div class="card" style="margin-bottom:0;border:2px solid ${r.yearEndBalance>=0?'rgba(74,222,128,.35)':r.yearEndBalance>=-5?'rgba(251,191,36,.35)':'rgba(252,165,165,.35)'}">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Projected year-end balance</div>
-      <div style="font-size:36px;font-weight:800;color:${r.yearEndBalance>=0?'var(--ok)':r.yearEndBalance>=-5?'var(--warn)':'var(--bad)'}">${r.yearEndBalance>=0?'+':''}${r.yearEndBalance} days</div>
-      <div class="small" style="margin-top:6px;line-height:1.6">${r.yearEndBalance>0?`<b>Surplus:</b> ${r.yearEndBalance} day(s) remaining after meeting all requirements. Confirm carry-forward rules with your HRBP.`:r.yearEndBalance===0?`<b>Perfectly balanced:</b> Your pool exactly covers the full 2026 requirement.`:`<b>Deficit:</b> ${Math.abs(r.yearEndBalance)} day(s) short — recovered from December payroll unless covered by unpaid leave first.`}</div>
+    <div class="card" style="margin-bottom:0;border:2px solid ${r.unpaidNeeded>0?'rgba(252,165,165,.45)':'rgba(74,222,128,.35)'};background:${r.unpaidNeeded>0?'rgba(239,68,68,.12)':'rgba(34,197,94,.12)'}">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Unpaid leave needed</div>
+      <div style="font-size:40px;font-weight:800;color:${r.unpaidNeeded>0?'var(--bad)':'var(--ok)'}">${r.unpaidNeeded} days</div>
+      <div class="small" style="margin-top:6px;line-height:1.6">${r.unpaidNeeded>0?`<b>Action required:</b> These days should be planned as unpaid leave on a non-consecutive basis.`:`No unpaid leave required based on current inputs.`}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;border-top:1px solid var(--line);padding-top:6px">
-        Carryover + entitlement &nbsp;<b>${r.fullYearPool}d</b><br>
-        − Total required &nbsp;<b>−${r.totalRequired}d</b><br>
-        <span style="font-weight:700;color:${r.yearEndBalance>=0?'var(--ok)':'var(--bad)'}">= ${r.yearEndBalance>=0?'+':''}${r.yearEndBalance}d at Dec 31</span>
+        Still to take in 2026 &nbsp;<b>${r.stillToTake}d</b><br>
+        Paid available for this need &nbsp;<b>${r.paidAvailable}d</b><br>
+        <span style="font-weight:700;color:${r.unpaidNeeded>0?'var(--bad)':'var(--ok)'}">Unpaid gap = ${r.unpaidNeeded}d</span>
       </div>
     </div>
   </div>`}
@@ -1449,7 +1478,7 @@ function renderLeavePortal(){
   <div style="margin-bottom:14px"><div style="font-size:20px;font-weight:800;margin-bottom:4px">2026 Employee Leave Planner</div><div class="small">Based on the <em>Annual Leave Utilization to Support Business Continuity</em> memo — 14 April 2026.</div></div>
   <div class="card">
     <div class="ch">Tell us about your leave situation</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:14px">
       <div class="field"><label>Agent</label><select id="lpAgent">${agentOpts}</select></div>
       <div class="field"><label>Grade group</label><select id="lpGrade">${gradeOpts}</select></div>
       <div class="field"><label>Work schedule</label><select id="lpSchedule"><option value="5day"${schedule==='5day'?' selected':''}>5-day week (rotating off day)</option><option value="6day"${schedule==='6day'?' selected':''}>6-day week (fixed off day)</option></select></div>
@@ -1460,13 +1489,13 @@ function renderLeavePortal(){
     <div id="lpEntitlementBadge" class="note" style="margin-bottom:14px">
       <b>Entitlement:</b> ${ent} working days/year &nbsp;·&nbsp; <b>Total required in 2026:</b> ${joinedIn2026?`${totalReq} days unpaid (1 per completed working month)`:`${totalReq} days (${ent} entitlement + 12 extra)`}
     </div>
-    ${joinedIn2026?'':`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:18px">
+    ${joinedIn2026?'':`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px">
       <div class="field"><label>Current leave balance</label><input type="number" id="lpCurrentBalance" step="0.5" value="${currentBal}"><div class="small" style="margin-top:4px">Enter the balance shown right now in Adrenalin. The app will automatically calculate your 2025 carryover.</div></div>
     </div>`}
     <div style="font-size:13px;font-weight:700;margin-bottom:6px">Leave already taken in 2026</div>
     <div class="small" style="margin-bottom:10px">Enter the number of days already taken in each month. Leave blank or zero where nothing was taken.</div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px">${monthInputs}</div>
-    ${joinedIn2026?'':`<div class="field" style="max-width:380px;margin-bottom:16px"><label>Preferred approach for any unpaid leave, if needed</label><select id="lpUnpaidPref"><option value="spread"${unprefPref==='spread'?' selected':''}>Spread evenly across remaining months</option><option value="end"${unprefPref==='end'?' selected':''}>Concentrate at year-end (Nov–Dec)</option><option value="start"${unprefPref==='start'?' selected':''}>Use as early as possible</option></select><div class="small" style="margin-top:4px">This shapes how unpaid days are distributed when your pool is insufficient to cover the requirement.</div></div>`}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(85px,1fr));gap:12px;margin-bottom:14px">${monthInputs}</div>
+    ${joinedIn2026?'':`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px"><div class="field"><label>Preferred approach for any unpaid leave, if needed</label><select id="lpUnpaidPref"><option value="spread"${unprefPref==='spread'?' selected':''}>Spread evenly across remaining months</option><option value="end"${unprefPref==='end'?' selected':''}>Concentrate at year-end (Nov–Dec)</option><option value="start"${unprefPref==='start'?' selected':''}>Use as early as possible</option></select><div class="small" style="margin-top:4px">This shapes how unpaid days are distributed when your pool is insufficient to cover the requirement.</div></div></div>`}
     <div class="rowflex">
       <button class="btn btnp" id="lpBuild" type="button">Build my leave plan</button>
       <button class="btn" id="lpSaveData" type="button">Save details</button>
@@ -1586,8 +1615,9 @@ function renderAdmin(){
     <td><select data-id="${a.id}" data-field="lang" class="agentEdit"><option ${a.lang==='English'?'selected':''}>English</option><option ${a.lang==='Arabic'?'selected':''}>Arabic</option><option ${a.lang==='English/Arabic'?'selected':''}>English/Arabic</option></select></td>
     <td><select data-id="${a.id}" data-field="preferredOff" class="agentEdit">${preferredOffOptions(a.preferredOff)}</select></td>
     <td><select data-id="${a.id}" data-field="active" class="agentEdit"><option value="true" ${a.active?'selected':''}>Active</option><option value="false" ${!a.active?'selected':''}>Inactive</option></select></td>
+    <td><button class="btn btnr deleteAgent" data-id="${a.id}" style="padding:6px 10px;font-size:11px">Delete</button></td>
   </tr>`).join('');
-  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance, and if Preferred extra OFF is set to Not specified the app will choose the extra OFF day automatically based on the operation.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const teamHtml=`<div class="note">Use this tab for your stable team setup. You can still auto-assign the regular shifts with language balance, and if Preferred extra OFF is set to Not specified the app will choose the extra OFF day automatically based on the operation.</div><div class="rowflex" style="margin-bottom:10px"><button class="btn btnp" id="autoShiftBalance">Auto-assign shifts by language balance</button><div class="small">Randomly spreads active agents between Shift 1 and Shift 2 while balancing Arabic-capable and English-only mix.</div></div><div class="card" style="background:rgba(37,99,235,.12);border:1px solid rgba(59,130,246,.3);margin-bottom:14px"><div class="ch">Add new agent</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px"><div class="field"><label>Agent name</label><input type="text" id="addAgentName" placeholder="Enter name"></div><div class="field"><label>Shift</label><select id="addAgentShift"><option value="1">Shift 1</option><option value="2">Shift 2</option></select></div><div class="field"><label>Language</label><select id="addAgentLang"><option>English</option><option>Arabic</option><option>English/Arabic</option></select></div><div class="field"><label>Preferred extra OFF</label><select id="addAgentPrefOff">${preferredOffOptions(0)}</select></div><div class="field"><label>Status</label><select id="addAgentActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><button class="btn btnp" id="addAgentBtn">Add agent</button></div><table class="tbl"><thead><tr><th>Agent</th><th>Shift</th><th>Language</th><th>Preferred extra OFF</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>`;
   return `
     <div class="card">
       <div class="ch">Admin setup</div>
@@ -1615,6 +1645,7 @@ function setOverride(agentId,date,status,reason){
   if(status==='CLEAR' || status==='AUTO') delete state.weekOverrides[key][k]; else state.weekOverrides[key][k]={status,reason:(reason||'Manual edit')};
   if(!Object.keys(state.weekOverrides[key]).length) delete state.weekOverrides[key];
   markRosterSyncChange();
+  saveState();
 }
 function getModalElements(){
   return {
@@ -1850,6 +1881,26 @@ function bindPageActions(){
   });
   document.querySelectorAll('.ramadanAssign').forEach(el=>el.onchange=(e)=>{ ensureRamadanSettings(state); const id=String(e.target.dataset.id); const value=e.target.value; if(value==='auto') delete state.ramadan.agentAssignments[id]; else state.ramadan.agentAssignments[id]=value; markRosterSyncChange(); saveState(); render(); });
   document.querySelectorAll('.agentEdit').forEach(el=>el.onchange=(e)=>{ const id=Number(e.target.dataset.id); const field=e.target.dataset.field; const a=state.agents.find(x=>x.id===id); if(!a || !field) return; if(field==='shift'||field==='preferredOff') a[field]=Number(e.target.value); else if(field==='active') a[field]=e.target.value==='true'; else a[field]=e.target.value; markRosterSyncChange(); saveState(); render(); });
+  document.querySelectorAll('.deleteAgent').forEach(el=>el.onclick=()=>{ const id=Number(el.dataset.id); const agent=state.agents.find(x=>x.id===id); if(!agent) return; if(!confirm(`Delete "${agent.name}" from the team? They will be removed from all rosters, leave records, and assignments.`)) return; deleteAgent(id); });
+  const addAgentBtn=document.getElementById('addAgentBtn');
+  if(addAgentBtn) addAgentBtn.onclick=()=>{
+    const name=(document.getElementById('addAgentName')?.value||'').trim();
+    const shift=Number(document.getElementById('addAgentShift')?.value||1);
+    const lang=document.getElementById('addAgentLang')?.value||'English';
+    const prefOff=Number(document.getElementById('addAgentPrefOff')?.value||0);
+    const active=document.getElementById('addAgentActive')?.value==='true';
+    if(!name) return alert('Please enter the agent name.');
+    const newId=Math.max(0,...state.agents.map(a=>a.id))+1;
+    state.agents.push({id:newId,name,lang,shift,active,preferredOff:prefOff});
+    document.getElementById('addAgentName').value='';
+    document.getElementById('addAgentShift').value='1';
+    document.getElementById('addAgentLang').value='English';
+    document.getElementById('addAgentPrefOff').value='0';
+    document.getElementById('addAgentActive').value='true';
+    markRosterSyncChange();
+    saveState();
+    render();
+  };
   const uploadBreakFile=document.getElementById('uploadBreakFile');
   if(uploadBreakFile) uploadBreakFile.onclick=async ()=>{
     const input=document.getElementById('breakFile');
@@ -1883,6 +1934,8 @@ function bindPageActions(){
     for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
     let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
     state.breakFocusDate=dates[Math.max(0,idx-1)];
+    markBreakSyncChange();
+    saveState();
     render();
   };
   const nextBreakDay=document.getElementById('nextBreakDay');
@@ -1892,6 +1945,8 @@ function bindPageActions(){
     for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); dates.push(fmtDate(d)); }
     let idx=Math.max(0, dates.indexOf(state.breakFocusDate));
     state.breakFocusDate=dates[Math.min(dates.length-1,idx+1)];
+    markBreakSyncChange();
+    saveState();
     render();
   };
   function fillBreakEditor(agentId,dateStr,b1,lunch,b2){
@@ -2038,7 +2093,7 @@ function bindPageActions(){
   const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
   // Leave planner event bindings
   const lpAgent=document.getElementById('lpAgent');
-  if(lpAgent) lpAgent.onchange=()=>{ state.leavePlannerData||={}; state.leavePlannerData._selectedAgent=Number(lpAgent.value); saveState(); render(); };
+  if(lpAgent) lpAgent.onchange=()=>{ state.leavePlannerData||={}; state.leavePlannerData._selectedAgent=Number(lpAgent.value); markRosterSyncChange(); saveState(); render(); };
   function lpCollectData(){
     const yearJoined=Number(document.getElementById('lpYearJoined')?.value)||2023;
     const data={
@@ -2075,6 +2130,7 @@ function bindPageActions(){
     state.leavePlannerData||={};
     state.leavePlannerData[agentId]=data;
     state.leavePlannerData._selectedAgent=agentId;
+    markRosterSyncChange();
     saveState();
     const r=buildLeavePlan(data);
     const resEl=document.getElementById('lpResult'); if(resEl){ resEl.innerHTML=renderLeavePlanResult(r); resEl.scrollIntoView({behavior:'smooth',block:'start'}); }
@@ -2084,8 +2140,8 @@ function bindPageActions(){
     if(tblBtn) tblBtn.onclick=()=>{ document.getElementById('lpCalView').style.display='none'; document.getElementById('lpTableView').style.display=''; tblBtn.classList.add('btnp'); calBtn&&calBtn.classList.remove('btnp'); };
   };
   const lpSaveData=document.getElementById('lpSaveData');
-  if(lpSaveData) lpSaveData.onclick=()=>{ const agentId=Number(document.getElementById('lpAgent')?.value); const data=lpCollectData(); state.leavePlannerData||={}; state.leavePlannerData[agentId]=data; state.leavePlannerData._selectedAgent=agentId; saveState(); const btn=document.getElementById('lpSaveData'); if(btn){const o=btn.textContent;btn.textContent='Saved ✓';setTimeout(()=>btn.textContent=o,1500);} };
-  const lpClear=document.getElementById('lpClearMonths'); if(lpClear) lpClear.onclick=()=>{ document.querySelectorAll('.lpTaken').forEach(el=>el.value=0); };
+  if(lpSaveData) lpSaveData.onclick=()=>{ const agentId=Number(document.getElementById('lpAgent')?.value); const data=lpCollectData(); state.leavePlannerData||={}; state.leavePlannerData[agentId]=data; state.leavePlannerData._selectedAgent=agentId; markRosterSyncChange(); saveState(); const btn=document.getElementById('lpSaveData'); if(btn){const o=btn.textContent;btn.textContent='Saved ✓';setTimeout(()=>btn.textContent=o,1500);} };
+  const lpClear=document.getElementById('lpClearMonths'); if(lpClear) lpClear.onclick=()=>{ document.querySelectorAll('.lpTaken').forEach(el=>el.value=0); markRosterSyncChange(); saveState(); render(); };
   const moon=document.getElementById('themeMoon'); if(moon) moon.onclick=()=>setTheme('dark');
   const sun=document.getElementById('themeSun'); if(sun) sun.onclick=()=>setTheme('light');
   const burgerToggle=document.getElementById('burgerToggle');
