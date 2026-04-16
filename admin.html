@@ -70,13 +70,22 @@ body.light-theme .burger{color:#0f172a;background:rgba(255,255,255,.5)}
 .agentEdit{width:100%;padding:7px 9px;border:1px solid rgba(148,163,184,.38);border-radius:8px;background:rgba(15,23,42,.68);color:#dbeafe;transition:border-color .2s ease, box-shadow .2s ease, background .2s ease}
 .agentEdit:focus{outline:none;border-color:rgba(56,189,248,.7);box-shadow:0 0 0 3px rgba(56,189,248,.18);background:rgba(15,23,42,.82)}
 .agentEdit option{background:#0f172a;color:#dbeafe}
-.pg{padding:18px 20px}
-#app.week-next{animation:weekSlideNext .4s ease}
-#app.week-prev{animation:weekSlidePrev .4s ease}
+.pg{padding:18px 20px;position:relative}
+#app.week-loading{pointer-events:none}
+#app.week-loading .met,#app.week-loading .wc,#app.week-loading .wagent,#app.week-loading .daycard{position:relative;overflow:hidden;opacity:.56;filter:saturate(.45)}
+#app.week-loading .met::after,#app.week-loading .wc::after,#app.week-loading .wagent::after,#app.week-loading .daycard::after{content:'';position:absolute;inset:0;transform:translateX(-120%);background:linear-gradient(110deg,transparent 15%,rgba(148,163,184,.22) 48%,transparent 85%);animation:weekLoadingSweep .95s linear infinite}
+body.light-theme #app.week-loading .met::after,body.light-theme #app.week-loading .wc::after,body.light-theme #app.week-loading .wagent::after,body.light-theme #app.week-loading .daycard::after{background:linear-gradient(110deg,transparent 15%,rgba(59,130,246,.16) 48%,transparent 85%)}
+#app.week-next{animation:weekSlideNext .42s cubic-bezier(.22,.7,.2,1)}
+#app.week-prev{animation:weekSlidePrev .42s cubic-bezier(.22,.7,.2,1)}
+#app.week-next .met,#app.week-next .wc,#app.week-next .wagent,#app.week-next .daycard{animation:weekCardNext .56s cubic-bezier(.22,.7,.2,1) both;animation-delay:calc(var(--wk-delay,0) * 22ms)}
+#app.week-prev .met,#app.week-prev .wc,#app.week-prev .wagent,#app.week-prev .daycard{animation:weekCardPrev .56s cubic-bezier(.22,.7,.2,1) both;animation-delay:calc(var(--wk-delay,0) * 22ms)}
 #app.week-fade .met > *,#app.week-fade .card > *,#app.week-fade .wc > *,#app.week-fade .wagent > *,#app.week-fade .daycard > *{animation:detailPulse .24s ease}
-@keyframes weekSlideNext{from{opacity:.3;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
-@keyframes weekSlidePrev{from{opacity:.3;transform:translateX(-28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes weekSlideNext{0%{opacity:.1;transform:translateX(64px) scale(.988);filter:blur(2px)}65%{opacity:1;transform:translateX(-6px) scale(1.004);filter:blur(0)}100%{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}
+@keyframes weekSlidePrev{0%{opacity:.1;transform:translateX(-64px) scale(.988);filter:blur(2px)}65%{opacity:1;transform:translateX(6px) scale(1.004);filter:blur(0)}100%{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}
+@keyframes weekCardNext{0%{opacity:0;transform:translateX(80px) translateY(8px) scale(.97);filter:blur(2px)}70%{opacity:1;transform:translateX(-6px) translateY(0) scale(1.01);filter:blur(0)}100%{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
+@keyframes weekCardPrev{0%{opacity:0;transform:translateX(-80px) translateY(8px) scale(.97);filter:blur(2px)}70%{opacity:1;transform:translateX(6px) translateY(0) scale(1.01);filter:blur(0)}100%{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
 @keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
+@keyframes weekLoadingSweep{to{transform:translateX(120%)}}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .met{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;backdrop-filter:blur(10px);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
 .met:hover{transform:translateY(-3px);box-shadow:0 12px 24px rgba(2,8,22,.45);border-color:rgba(96,165,250,.45)}
@@ -282,6 +291,7 @@ const agentView=urlParams.get('view')==='agent';
 const agentViewId=Number(urlParams.get('agent')||0);
 let currentPage=agentView?'dashboard':'dashboard';
 let adminSubTab='team';
+let weekLoadToken=0;
 if(agentView) document.body.classList.add('agent-mode');
 
 function currentTheme(){
@@ -1038,11 +1048,47 @@ function pageNav(){
 function playWeekTransition(dir){
   const app=document.getElementById('app');
   if(!app) return;
+  const items=Array.from(app.querySelectorAll('.met,.wc,.wagent,.daycard'));
+  if(dir==='prev') items.reverse();
+  items.forEach((el,idx)=>el.style.setProperty('--wk-delay', String(Math.min(idx,24))));
   app.classList.remove('week-next','week-prev','week-fade');
   void app.offsetWidth;
   app.classList.add(dir==='prev' ? 'week-prev' : 'week-next');
   app.classList.add('week-fade');
   setTimeout(()=>app.classList.remove('week-next','week-prev','week-fade'), 360);
+}
+function renderWithWeekLoading(dir, updateFn){
+  const app=document.getElementById('app');
+  if(!app){
+    updateFn();
+    render(dir);
+    return;
+  }
+  const hasRosterTargets=app.querySelector('.wc,.wagent,.daycard');
+  if(!hasRosterTargets){
+    updateFn();
+    render(dir);
+    return;
+  }
+  const token=++weekLoadToken;
+  ['monthPicker','weekPicker','prevWeek','nextWeek'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.disabled=true;
+  });
+  app.classList.add('week-loading');
+  setTimeout(()=>{
+    if(token!==weekLoadToken) return;
+    updateFn();
+    render(dir);
+    setTimeout(()=>{
+      if(token!==weekLoadToken) return;
+      app.classList.remove('week-loading');
+      ['monthPicker','weekPicker','prevWeek','nextWeek'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.disabled=false;
+      });
+    },120);
+  },170);
 }
 function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='leavePortal') app.innerHTML=renderLeavePortal(); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
 function syncHeader(){
@@ -2168,10 +2214,10 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pullClo
 setInterval(()=>{ pullCloudStateIfChanged(); }, 8000);
 
 document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{currentPage=b.dataset.page; render();});
-document.getElementById('monthPicker').onchange=e=>{state.month=e.target.value; state.selectedWeek=0; render('next');};
-document.getElementById('weekPicker').onchange=e=>{const prev=state.selectedWeek; state.selectedWeek=Number(e.target.value); render(state.selectedWeek<prev?'prev':'next');};
-document.getElementById('prevWeek').onclick=()=>{state.selectedWeek=Math.max(0,state.selectedWeek-1); render('prev');};
-document.getElementById('nextWeek').onclick=()=>{const max=getMonthInfo(state.month).weeks.length-1; state.selectedWeek=Math.min(max,state.selectedWeek+1); render('next');};
+document.getElementById('monthPicker').onchange=e=>{renderWithWeekLoading('next', ()=>{state.month=e.target.value; state.selectedWeek=0;});};
+document.getElementById('weekPicker').onchange=e=>{const next=Number(e.target.value); const prev=state.selectedWeek; renderWithWeekLoading(next<prev?'prev':'next', ()=>{state.selectedWeek=next;});};
+document.getElementById('prevWeek').onclick=()=>{renderWithWeekLoading('prev', ()=>{state.selectedWeek=Math.max(0,state.selectedWeek-1);});};
+document.getElementById('nextWeek').onclick=()=>{renderWithWeekLoading('next', ()=>{const max=getMonthInfo(state.month).weeks.length-1; state.selectedWeek=Math.min(max,state.selectedWeek+1);});};
 (async function initCloud(){
   if(BIN_PARAM){
     try{ await loadCloudState(BIN_PARAM); }catch(err){ cloudStatus.lastError=err.message || 'Could not load cloud data.'; }

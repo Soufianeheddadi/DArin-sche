@@ -97,12 +97,29 @@ body.light-theme .bg-orbs::after{background:repeating-linear-gradient(125deg,rgb
 .offrsn{font-size:11px;color:var(--muted);margin-top:5px}
 .card{background:var(--glass-soft);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;backdrop-filter:blur(8px)}
 .ch{font-size:13px;font-weight:700;margin-bottom:10px}
+#pgWrap.anim-next{animation:panelSlideNext .42s cubic-bezier(.22,.7,.2,1)}
+#pgWrap.anim-prev{animation:panelSlidePrev .42s cubic-bezier(.22,.7,.2,1)}
 #pgWrap.anim-next .mets,#pgWrap.anim-next .days,#pgWrap.anim-next #leaveDiv{animation:weekInNext .32s ease}
 #pgWrap.anim-prev .mets,#pgWrap.anim-prev .days,#pgWrap.anim-prev #leaveDiv{animation:weekInPrev .32s ease}
+#pgWrap.anim-next .days .dc,#pgWrap.anim-next .mets .met,#pgWrap.anim-next #leaveDiv .card{animation:weekCardNext .56s cubic-bezier(.22,.7,.2,1) both;animation-delay:calc(var(--wk-delay,0) * 26ms)}
+#pgWrap.anim-prev .days .dc,#pgWrap.anim-prev .mets .met,#pgWrap.anim-prev #leaveDiv .card{animation:weekCardPrev .56s cubic-bezier(.22,.7,.2,1) both;animation-delay:calc(var(--wk-delay,0) * 26ms)}
 #pgWrap.anim-fade .met > *,#pgWrap.anim-fade .dc > *,#pgWrap.anim-fade .card > *{animation:detailPulse .24s ease}
-@keyframes weekInNext{from{opacity:.3;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
-@keyframes weekInPrev{from{opacity:.3;transform:translateX(-22px)}to{opacity:1;transform:translateX(0)}}
+@keyframes panelSlideNext{from{transform:translateX(36px)}to{transform:translateX(0)}}
+@keyframes panelSlidePrev{from{transform:translateX(-36px)}to{transform:translateX(0)}}
+@keyframes weekInNext{0%{opacity:.08;transform:translateX(64px) scale(.985);filter:blur(1.8px)}65%{opacity:1;transform:translateX(-6px) scale(1.004);filter:blur(0)}100%{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}
+@keyframes weekInPrev{0%{opacity:.08;transform:translateX(-64px) scale(.985);filter:blur(1.8px)}65%{opacity:1;transform:translateX(6px) scale(1.004);filter:blur(0)}100%{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}
+@keyframes weekCardNext{0%{opacity:0;transform:translateX(80px) translateY(8px) scale(.97);filter:blur(2px)}70%{opacity:1;transform:translateX(-6px) translateY(0) scale(1.01);filter:blur(0)}100%{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
+@keyframes weekCardPrev{0%{opacity:0;transform:translateX(-80px) translateY(8px) scale(.97);filter:blur(2px)}70%{opacity:1;transform:translateX(6px) translateY(0) scale(1.01);filter:blur(0)}100%{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
 @keyframes detailPulse{0%{opacity:1}45%{opacity:.12;filter:blur(.4px)}100%{opacity:1;filter:blur(0)}}
+@keyframes weekLabelNext{0%{transform:translateX(12px);opacity:.5;color:#7dd3fc}65%{transform:translateX(-2px);opacity:1}100%{transform:translateX(0);opacity:1;color:inherit}}
+@keyframes weekLabelPrev{0%{transform:translateX(-12px);opacity:.5;color:#7dd3fc}65%{transform:translateX(2px);opacity:1}100%{transform:translateX(0);opacity:1;color:inherit}}
+.wk-anim-next{animation:weekLabelNext .38s ease}
+.wk-anim-prev{animation:weekLabelPrev .38s ease}
+#pgWrap.week-loading{pointer-events:none}
+#pgWrap.week-loading .days .dc,#pgWrap.week-loading .mets .met,#pgWrap.week-loading #leaveDiv .card{position:relative;overflow:hidden;opacity:.56;filter:saturate(.45)}
+#pgWrap.week-loading .days .dc::after,#pgWrap.week-loading .mets .met::after,#pgWrap.week-loading #leaveDiv .card::after{content:'';position:absolute;inset:0;transform:translateX(-120%);background:linear-gradient(110deg,transparent 15%,rgba(148,163,184,.22) 48%,transparent 85%);animation:weekLoadingSweep .95s linear infinite}
+body.light-theme #pgWrap.week-loading .days .dc::after,body.light-theme #pgWrap.week-loading .mets .met::after,body.light-theme #pgWrap.week-loading #leaveDiv .card::after{background:linear-gradient(110deg,transparent 15%,rgba(59,130,246,.16) 48%,transparent 85%)}
+@keyframes weekLoadingSweep{to{transform:translateX(120%)}}
 body.light-theme .topbar{background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.72))}
 body.light-theme .topbar .ttl{color:#334155}
 body.light-theme .sync-badge{color:#334155;background:rgba(255,255,255,.9);border-color:rgba(100,116,139,.3)}
@@ -153,7 +170,7 @@ body.light-theme .p-fri{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
   <div class="orb orb4"></div>
 </div>
 
-<div class="topbar">
+<div class="topbar" id="globalTopbar">
   <div class="topbar-left">
     <span class="ttl">JAIDAH CX SCHEDULER</span>
     <span class="sync-badge off" id="syncBadge">Sync off</span>
@@ -560,6 +577,7 @@ var state = st;
 var curAgent = 0;
 var curMon = todayMonth();
 var curWk = 0;
+var weekLoadToken = 0;
 
 function currentTheme(){
   return localStorage.getItem(THEME_KEY) || 'dark';
@@ -686,6 +704,7 @@ function goAgent(){
   var a = st.agents.find(function(x){ return x.id===id; });
   if(!a){ showToast('This agent is not available yet.', 'error'); return; }
   document.getElementById('agBadge').textContent = a.name;
+  document.getElementById('globalTopbar').style.display = 'none';
   document.getElementById('pickerDiv').style.display = 'none';
   document.getElementById('appDiv').style.display = 'block';
   curMon = todayMonth(); curWk = 0;
@@ -693,6 +712,7 @@ function goAgent(){
 }
 
 function goBack(){
+  document.getElementById('globalTopbar').style.display = 'flex';
   document.getElementById('appDiv').style.display = 'none';
   document.getElementById('pickerDiv').style.display = 'flex';
   curAgent = 0;
@@ -724,32 +744,82 @@ function buildWk(){
   }).join('');
 }
 
-function onMon(v){ curMon=v; curWk=0; buildWk(); draw('next'); }
-function onWk(v){ var old=curWk; curWk=v; buildWk(); draw(curWk<old?'prev':'next'); }
+function withWeekLoading(dir, applyUpdate){
+  var pg = document.getElementById('pgWrap');
+  if(!pg){
+    applyUpdate();
+    draw(dir);
+    return;
+  }
+  var token = ++weekLoadToken;
+  var ctrls = pg.querySelectorAll('.wnav button,.wnav select');
+  Array.prototype.forEach.call(ctrls, function(el){ el.disabled = true; });
+  pg.classList.add('week-loading');
+  setTimeout(function(){
+    if(token !== weekLoadToken) return;
+    applyUpdate();
+    draw(dir);
+    setTimeout(function(){
+      if(token !== weekLoadToken) return;
+      pg.classList.remove('week-loading');
+      Array.prototype.forEach.call(ctrls, function(el){ el.disabled = false; });
+    }, 120);
+  }, 170);
+}
+
+function onMon(v){
+  withWeekLoading('next', function(){
+    curMon=v;
+    curWk=0;
+    buildWk();
+  });
+}
+function onWk(v){
+  var old=curWk;
+  withWeekLoading(v<old?'prev':'next', function(){
+    curWk=v;
+    buildWk();
+  });
+}
 
 function playWeekTransition(dir){
   var pg = document.getElementById('pgWrap');
   if(!pg) return;
+  var weekLabel = document.getElementById('wkLbl');
+  var items = Array.prototype.slice.call(pg.querySelectorAll('.days .dc, .mets .met, #leaveDiv .card'));
+  if(dir==='prev') items.reverse();
+  items.forEach(function(el,idx){ el.style.setProperty('--wk-delay', String(Math.min(idx,18))); });
   pg.classList.remove('anim-next','anim-prev','anim-fade');
+  if(weekLabel) weekLabel.classList.remove('wk-anim-next','wk-anim-prev');
   void pg.offsetWidth;
   pg.classList.add(dir==='prev'?'anim-prev':'anim-next');
   pg.classList.add('anim-fade');
-  setTimeout(function(){ pg.classList.remove('anim-next','anim-prev','anim-fade'); }, 360);
+  if(weekLabel){
+    weekLabel.classList.add(dir==='prev'?'wk-anim-prev':'wk-anim-next');
+  }
+  setTimeout(function(){
+    pg.classList.remove('anim-next','anim-prev','anim-fade');
+    if(weekLabel) weekLabel.classList.remove('wk-anim-next','wk-anim-prev');
+  }, 420);
 }
 
 function prevW(){
-  if(curWk>0){ curWk--; buildWk(); draw('prev'); return; }
-  var d=new Date(curMon+'-01'); d.setMonth(d.getMonth()-1);
-  curMon=fmtDate(d).substring(0,7);
-  curWk=getMonthInfo(curMon).weeks.length-1;
-  buildMon(); draw('prev');
+  withWeekLoading('prev', function(){
+    if(curWk>0){ curWk--; buildWk(); return; }
+    var d=new Date(curMon+'-01'); d.setMonth(d.getMonth()-1);
+    curMon=fmtDate(d).substring(0,7);
+    curWk=getMonthInfo(curMon).weeks.length-1;
+    buildMon();
+  });
 }
 function nextW(){
-  var info=getMonthInfo(curMon);
-  if(curWk<info.weeks.length-1){ curWk++; buildWk(); draw('next'); return; }
-  var d=new Date(curMon+'-01'); d.setMonth(d.getMonth()+1);
-  curMon=fmtDate(d).substring(0,7); curWk=0;
-  buildMon(); draw('next');
+  withWeekLoading('next', function(){
+    var info=getMonthInfo(curMon);
+    if(curWk<info.weeks.length-1){ curWk++; buildWk(); return; }
+    var d=new Date(curMon+'-01'); d.setMonth(d.getMonth()+1);
+    curMon=fmtDate(d).substring(0,7); curWk=0;
+    buildMon();
+  });
 }
 
 function draw(dir){

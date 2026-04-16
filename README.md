@@ -93,6 +93,33 @@ Agents can see:
 - Ramadan shifts when active
 - break and lunch times
 
+### 9. UI and motion enhancements
+Recent interface improvements were added to improve clarity and visual feedback.
+
+These include:
+- animated abstract background layers in both admin and agent portals
+- directional week-change transitions (next/previous)
+- box-level loading shimmer during week navigation so schedule changes feel explicit
+- roster-focused loading behavior (effect on boxes/cards, not section containers)
+- responsive form/grid improvements to avoid overlapping inputs
+- improved week-change feedback in schedule cards with staggered motion
+
+### 10. Admin productivity updates
+Additional planning controls were introduced for faster team management.
+
+These include:
+- add new agent section in Admin
+- full agent deletion with cascade cleanup from related schedule/leave/override data
+- stronger sync/save coverage for interactive controls to reduce missed updates
+
+### 11. Header and theme toggle behavior
+The agent page was adjusted to avoid duplicate top navigation.
+
+Current behavior:
+- the global top bar is visible on the portal picker screen
+- when entering agent schedule view, the global top bar is hidden
+- this leaves a single schedule header and a single theme toggle in agent view
+
 ### 8. Sync and shared data
 The app is designed so updates reflect across the planner and the agent view.
 
@@ -132,6 +159,16 @@ In Break Control, upload the interactions file so the app can suggest better bre
 
 ### Step 7: Share the agent portal
 Once the planning is ready, use the agent-facing link so team members can open the website and view their own schedules.
+
+## Change log (recent)
+
+- Added animated abstract moving background to `index.html` and `admin.html`.
+- Added stronger directional week transitions for schedule content.
+- Added week-navigation loading shimmer and then scoped it to roster boxes/cards only.
+- Expanded shimmer to all boxes inside schedule sections without applying effect to section wrappers.
+- Fixed duplicate top bars/theme toggles in agent view by hiding global top bar after agent entry.
+- Added Admin improvements for team management: add agent and deep-delete agent cleanup.
+- Improved sync consistency by ensuring key UI actions trigger save/sync updates.
 
 ## Website links
 
