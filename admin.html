@@ -1025,32 +1025,7 @@ function renderDashboard(week,weekPlan){
   `;
 }
 function renderWeekly(week,weekPlan){
-  let alerts='';
-  let totalAvailable=0,totalRequired=0,underDays=0;
-  const dayCards=[];
-  for(let i=0;i<7;i++){
-    const d=new Date(week.start);
-    d.setDate(d.getDate()+i);
-    const ds=fmtDate(d);
-    const s=getDaySummary(ds,weekPlan);
-    totalAvailable+=s.available;
-    totalRequired+=s.required;
-    if(s.gap<0) underDays++;
-    dayCards.push(`<div class="met"><div class="l">${d.toLocaleDateString('en-GB',{weekday:'short'})} ${humanDate(d)}</div><div class="v" style="color:${s.gap<0?'#991b1b':'#166534'}">${s.available}</div><div class="s">Req ${s.required} · S1 ${s.shift1} · S2 ${s.shift2}${s.extra?` · Extra ${s.extra}`:''} · Off ${s.off} · Leave ${s.leave}</div></div>`);
-    if(s.gap<0){alerts+=`<div class="warn">${d.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})}: ${Math.abs(s.gap)} below required staffing.</div>`;}
-  }
-  if(!alerts) alerts='<div class="ok">No staffing risk on the selected week based on the current setup.</div>';
-  const leaveCount=state.leaves.filter(l=> overlapsWeek(l,week)).length + (state.holidays||[]).filter(h=> overlapsWeek(h,week)).length;
-  return `${alerts}
-    <div class="note">God mode weekly planner: this page always stays synced with Dashboard and Agent view. Use Edit on any day box to override status, shift, and breaks for that exact date.</div>
-    <div class="grid4">
-      <div class="met"><div class="l">Active agents</div><div class="v">${activeAgents().length}</div><div class="s">Friday fixed OFF applied by default</div></div>
-      <div class="met"><div class="l">Total weekly coverage</div><div class="v">${totalAvailable}</div><div class="s">Required ${totalRequired}</div></div>
-      <div class="met"><div class="l">Under-covered days</div><div class="v" style="color:${underDays?'#991b1b':'#166534'}">${underDays}</div><div class="s">This selected week</div></div>
-      <div class="met"><div class="l">Leave / holiday records</div><div class="v">${leaveCount}</div><div class="s">Affecting this week</div></div>
-    </div>
-    <div class="card"><div class="ch">Week coverage snapshot · ${week.label}</div><div class="grid4">${dayCards.join('')}</div></div>
-    ${renderWeeklyTable(week,weekPlan,false)}`;
+  return renderWeeklyTable(week,weekPlan,false);
 }
 function renderWeeklyTable(week,weekPlan,compact){
   const dayHeaders=[]; 
