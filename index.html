@@ -237,6 +237,7 @@ function loadState(){
       parsed.leaves ||= [];
       parsed.holidays ||= [];
       parsed.weekOverrides ||= {};
+      parsed.shiftOverrides ||= {};
       parsed.month ||= todayMonth();
       parsed.selectedWeek ||= 0;
       parsed.breakOverrides ||= {};
@@ -245,13 +246,14 @@ function loadState(){
       return parsed;
     }
   }catch(e){}
-  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],holidays:[],weekOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
+  return ensureRamadanSettings(ensureBreakPlannerSettings({agents:JSON.parse(JSON.stringify(defaultAgents)),leaves:[],holidays:[],weekOverrides:{},shiftOverrides:{},breakOverrides:{},month:todayMonth(),selectedWeek:0}));
 }
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function ensureBreakPlannerSettings(obj){
   obj.breakDemand ||= {};
   obj.breakDemandMeta ||= {source:'', rows:0, days:0, uploadedAt:'', updatedAt:''};
   obj.breakSyncVersion ||= 0;
+  obj.shiftOverrides ||= {};
   return obj;
 }
 function ensureRamadanSettings(obj){
@@ -277,7 +279,23 @@ function formatClockMinutes(total){ var h=Math.floor(total/60)%24; var m=total%6
 function rangeFromMinutes(start,end){ return formatClockMinutes(start) + '-' + formatClockMinutes(end); }
 function isRamadanDate(dateStr){ var r=state.ramadan||defaultRamadan; return !!(r.enabled && r.start && r.end && dateStr>=r.start && dateStr<=r.end); }
 function getRamadanAssignment(agent){ var r=state.ramadan||defaultRamadan; return String(r.agentAssignments[String(agent.id)] || 'auto'); }
+function getShiftOverride(agentId,dateStr){ return (state.shiftOverrides && state.shiftOverrides[`${agentId}|${dateStr}`]) || ''; }
 function getShiftTimeInfo(agent,dateStr){
+  var override=String(getShiftOverride(agent.id,dateStr) || '').trim();
+  if(override){
+    if(override.indexOf('ramadan:')===0){
+      var slot=override.split(':')[1];
+      var overrideShiftIds=getRamadanShiftIds();
+      if(isRamadanDate(dateStr) && overrideShiftIds.indexOf(slot)!==-1){
+        var overrideName=(state.ramadan && state.ramadan.names && state.ramadan.names[slot]) || ('Ramadan Shift ' + slot);
+        var overrideTime=(state.ramadan && state.ramadan.times && state.ramadan.times[slot]) || defaultRamadan.times[2];
+        return {label:overrideName + ' · ' + overrideTime,name:overrideName,time:overrideTime,shift:Number(slot),ramadan:true};
+      }
+    }
+    var regularSlot=override.indexOf('regular:')===0 ? override.split(':')[1] : override;
+    var regularShift=Number(regularSlot);
+    if(shiftLabel[regularShift]) return {label:'Shift ' + regularShift + ' · ' + shiftLabel[regularShift],name:'Shift ' + regularShift,time:shiftLabel[regularShift],shift:regularShift,ramadan:false};
+  }
   if(isRamadanDate(dateStr)){
     var shiftIds=getRamadanShiftIds();
     var assign=getRamadanAssignment(agent);
@@ -302,7 +320,7 @@ function getDynamicBreakTemplates(rangeStr){
     [rangeFromMinutes(start+120,start+135),rangeFromMinutes(start+210,start+240),rangeFromMinutes(start+300,start+315)]
   ];
 }
-function getBreakTemplatesForAgent(agent,dateStr){ var shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.time) : (breakTemplates[agent.shift]||breakTemplates[1]); }
+function getBreakTemplatesForAgent(agent,dateStr){ var shiftInfo=getShiftTimeInfo(agent,dateStr); return shiftInfo.ramadan ? getDynamicBreakTemplates(shiftInfo.time) : (breakTemplates[shiftInfo.shift]||breakTemplates[1]); }
 function getLeaveMap(){
   const map={};
   state.leaves.forEach(l=>{getLeaveDates(l.agentId,l.start,l.end).forEach(dt=>{map[`${l.agentId}|${dt}`]=l.type||'Leave';});});
