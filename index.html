@@ -450,12 +450,15 @@ function buildDemandAwareBreaks(agent,dateStr,usage){
   var b1=pickLowestDemandRange(dateStr, parsed.start+60, Math.min(parsed.start+180, parsed.end-180), 15, usage);
   var b1End=b1 ? parseRangeMinutes(b1).end : parsed.start+90;
   if(b1) reserveUsage(usage,b1);
-  var lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), parsed.end-90, 30, usage, b1End+60);
+  var lunchLatest=Math.min(parsed.end-90, b1End+180+30);
+  var lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), lunchLatest, 30, usage, b1End+60);
   var lunchEnd=lunch ? parseRangeMinutes(lunch).end : parsed.start+240;
   if(lunch) reserveUsage(usage,lunch);
-  var b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), parsed.end-30, 15, usage, lunchEnd+60);
+  var b2Latest=Math.min(parsed.end-30, lunchEnd+180+15);
+  var b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), b2Latest, 15, usage, lunchEnd+60);
   if(b2) reserveUsage(usage,b2);
-  return [b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+  var selected=[b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+  return hasMaxBreakGap(selected,180) ? selected : fallback;
 }
 function buildBreakPlanForDate(dateStr,weekPlan){
   const result={};
@@ -468,7 +471,7 @@ function buildBreakPlanForDate(dateStr,weekPlan){
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
+      if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       if(hasDemand){
         result[agent.id]=buildDemandAwareBreaks(agent,dateStr,usage);
         return;
@@ -477,7 +480,7 @@ function buildBreakPlanForDate(dateStr,weekPlan){
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
-        if(cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+        if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
       }
       result[agent.id]=selected;
       selected.forEach(x=>reserveUsage(usage,x));
@@ -491,6 +494,14 @@ function parseRangeMinutes(r){
   const [sh,sm]=s.split(':').map(Number);
   const [eh,em]=e.split(':').map(Number);
   return {start:sh*60+sm,end:eh*60+em};
+}
+function hasValidBreakStructure(proposal){
+  return Array.isArray(proposal) && proposal.length===3 && proposal.every(x=>typeof x==='string' && x.indexOf('-')!==-1);
+}
+function hasMaxBreakGap(proposal,maxGapMins){
+  if(!hasValidBreakStructure(proposal)) return false;
+  var parsed=proposal.map(parseRangeMinutes);
+  return (parsed[1].start - parsed[0].end) <= maxGapMins && (parsed[2].start - parsed[1].end) <= maxGapMins;
 }
 function getBreakOverride(agentId,dateStr){ return state.breakOverrides[`${agentId}|${dateStr}`] || null; }
 function overlapsWeek(l,week){return new Date(l.end)>=week.start && new Date(l.start)<=week.end;}

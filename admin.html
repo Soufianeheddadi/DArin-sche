@@ -159,6 +159,8 @@ body.light-theme .heatcell{color:#0f172a}
 .edit-modal-close{border:none;background:transparent;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px}
 .edit-modal-close:hover{background:rgba(148,163,184,.18);color:var(--ink)}
 .edit-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.embed-wrap{height:78vh;min-height:520px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(15,23,42,.5)}
+.embed-frame{width:100%;height:100%;border:none;background:#fff}
 
 </style>
 </head>
@@ -176,6 +178,7 @@ body.light-theme .heatcell{color:#0f172a}
     <button class="nb" data-page="weekly"><span class="ico">📅</span><span class="txt">Weekly Planner</span></button>
     <button class="nb" data-page="leave"><span class="ico">🗓️</span><span class="txt">Leave and Holidays</span></button>
     <button class="nb" data-page="breaks"><span class="ico">☕</span><span class="txt">Break Control</span></button>
+    <button class="nb" data-page="leavePortal"><span class="ico">🔗</span><span class="txt">Leave Portal</span></button>
     <button class="nb" data-page="team"><span class="ico">👥</span><span class="txt">Team Setup</span></button>
     <button class="nb" data-page="admin"><span class="ico">⚙️</span><span class="txt">Admin</span></button>
     <div class="foot">Built for your CX operation<br>Auto-generate first, edit only when needed</div>
@@ -248,7 +251,7 @@ const breakTemplates={
 2:[['10:15-10:30','12:30-13:00','15:30-15:45'],['10:30-10:45','13:00-13:30','15:45-16:00'],['10:45-11:00','13:30-14:00','16:00-16:15'],['11:00-11:15','14:00-14:30','16:15-16:30']]
 };
 const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
-const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave and Holidays',breaks:'Break Control',team:'Team Setup',admin:'Admin'};
+const pages={dashboard:'Dashboard',weekly:'Weekly Planner',leave:'Leave and Holidays',breaks:'Break Control',leavePortal:'Leave Portal',team:'Team Setup',admin:'Admin'};
 let state=loadState();
 const urlParams=new URLSearchParams(location.search);
 const agentView=urlParams.get('view')==='agent';
@@ -336,6 +339,7 @@ function ensureBreakPlannerSettings(obj){
   obj.syncVersion ||= 0;
   obj.lastUpdatedAt ||= '';
   obj.shiftOverrides ||= {};
+  obj.leavePlannerData ||= {};
   return obj;
 }
 function markRosterSyncChange(){
@@ -653,6 +657,17 @@ function parseRangeMinutes(r){
   const [eh,em]=e.split(':').map(Number);
   return {start:sh*60+sm,end:eh*60+em};
 }
+function overlapsMinuteBlock(range,startMin,endMin){
+  return range.start < endMin && range.end > startMin;
+}
+function hasValidBreakStructure(proposal){
+  return Array.isArray(proposal) && proposal.length===3 && proposal.every(x=>typeof x==='string' && x.includes('-'));
+}
+function hasMaxBreakGap(proposal,maxGapMins){
+  if(!hasValidBreakStructure(proposal)) return false;
+  const parsed=proposal.map(parseRangeMinutes);
+  return (parsed[1].start - parsed[0].end) <= maxGapMins && (parsed[2].start - parsed[1].end) <= maxGapMins;
+}
 function overlapsRange(a,b){ return a.start < b.end && b.start < a.end; }
 function getBreakOverride(agentId,dateStr){ return state.breakOverrides[`${agentId}|${dateStr}`] || null; }
 function countBreakConflicts(dateStr, weekPlan, proposal, exceptAgentId){
@@ -701,10 +716,12 @@ function makeBreakProposalFromStarts(b1Start,lunchStart,b2Start){
   return [rangeFromMinutes(parseClockMinutes(b1Start), parseClockMinutes(b1Start)+15), rangeFromMinutes(parseClockMinutes(lunchStart), parseClockMinutes(lunchStart)+30), rangeFromMinutes(parseClockMinutes(b2Start), parseClockMinutes(b2Start)+15)];
 }
 function validateBreakProposal(agent,dateStr,proposal,weekPlan){
+  if(!hasValidBreakStructure(proposal)) return 'Each working agent must have exactly 3 breaks.';
   const shift=parseRangeMinutes(getShiftTimeInfo(agent,dateStr).time);
   const parsed=proposal.map(parseRangeMinutes);
   if(parsed[0].start < shift.start || parsed[2].end > shift.end) return 'Breaks must stay inside the selected shift.';
   if(parsed[0].end > parsed[1].start || parsed[1].end > parsed[2].start) return 'The order must stay: 15 min break, 30 min lunch, 15 min break.';
+  if((parsed[1].start - parsed[0].end) > 180 || (parsed[2].start - parsed[1].end) > 180) return 'The gap between consecutive breaks cannot exceed 3 hours.';
   const plans=buildBreakPlanForDate(dateStr,weekPlan);
   const slots=[];
   Object.entries(plans).forEach(([id,br])=>{ if(Number(id)!==agent.id) slots.push(...br); });
@@ -737,12 +754,15 @@ function buildDemandAwareBreaks(agent,dateStr,usage){
   const b1=pickLowestDemandRange(dateStr, parsed.start+60, Math.min(parsed.start+180, parsed.end-180), 15, usage);
   const b1End=b1 ? parseRangeMinutes(b1).end : parsed.start+90;
   if(b1) reserveUsage(usage,b1);
-  const lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), parsed.end-90, 30, usage, b1End+60);
+  const lunchLatest=Math.min(parsed.end-90, b1End+180+30);
+  const lunch=pickLowestDemandRange(dateStr, Math.max(parsed.start+150, b1End+60), lunchLatest, 30, usage, b1End+60);
   const lunchEnd=lunch ? parseRangeMinutes(lunch).end : parsed.start+240;
   if(lunch) reserveUsage(usage,lunch);
-  const b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), parsed.end-30, 15, usage, lunchEnd+60);
+  const b2Latest=Math.min(parsed.end-30, lunchEnd+180+15);
+  const b2=pickLowestDemandRange(dateStr, Math.max(parsed.start+240, lunchEnd+60), b2Latest, 15, usage, lunchEnd+60);
   if(b2) reserveUsage(usage,b2);
-  return [b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+  const selected=[b1 || fallback[0], lunch || fallback[1], b2 || fallback[2]];
+  return hasMaxBreakGap(selected,180) ? selected : fallback;
 }
 function buildBreakPlanForDate(dateStr,weekPlan){
   const result={};
@@ -755,7 +775,7 @@ function buildBreakPlanForDate(dateStr,weekPlan){
       const p=weekPlan[`${agent.id}|${dateStr}`];
       if(!p || p.status!=='WORK') return;
       const ov=getBreakOverride(agent.id,dateStr);
-      if(ov){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
+      if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
       if(hasDemand){
         const selected=buildDemandAwareBreaks(agent,dateStr,usage);
         result[agent.id]=selected;
@@ -765,7 +785,7 @@ function buildBreakPlanForDate(dateStr,weekPlan){
       let selected=templates[idx % templates.length];
       for(let step=0; step<templates.length; step++) {
         const cand=templates[(idx+step) % templates.length];
-        if(cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+        if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
       }
       result[agent.id]=selected;
       selected.forEach(x=>reserveUsage(usage,x));
@@ -984,7 +1004,7 @@ function playWeekTransition(dir){
   app.classList.add('week-fade');
   setTimeout(()=>app.classList.remove('week-next','week-prev','week-fade'), 360);
 }
-function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
+function render(dir){saveState(); pageNav(); syncHeader(); const app=document.getElementById('app'); const week=getSelectedWeek(); const weekPlan=getWeekPlan(week); if(agentView){ app.innerHTML=renderAgentView(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir); return; } if(currentPage==='dashboard') app.innerHTML=renderDashboard(week,weekPlan); if(currentPage==='weekly') app.innerHTML=renderWeekly(week,weekPlan); if(currentPage==='leave') app.innerHTML=renderLeave(week,weekPlan); if(currentPage==='breaks') app.innerHTML=renderBreaks(week,weekPlan); if(currentPage==='leavePortal') app.innerHTML=renderLeavePortal(); if(currentPage==='team') app.innerHTML=renderTeam(); if(currentPage==='admin') app.innerHTML=renderAdmin(week,weekPlan); bindPageActions(); updateCloudBanner(); if(dir) playWeekTransition(dir);}
 function syncHeader(){
   const mi=getMonthInfo(state.month); const monthPicker=document.getElementById('monthPicker'); const weekPicker=document.getElementById('weekPicker'); monthPicker.value=state.month;
   weekPicker.innerHTML=mi.weeks.map((w,i)=>`<option value="${i}">Week ${i+1} · ${w.label}</option>`).join(''); weekPicker.value=String(state.selectedWeek);
@@ -1134,11 +1154,12 @@ function renderBreaks(week,weekPlan){
   agentGrid.push('<div class="agentname">Break count</div>');
   displayMinutes.forEach(min=>{
     const minute=parseClockMinutes(min);
+    const slotEnd=minute+30;
     let count=0;
     workingAgents.forEach(agent=>{
       const breaks=focusPlans[agent.id] || getBreaksForAgent(agent,0,focusDate);
       const ranges=[parseRangeMinutes(breaks[0]),parseRangeMinutes(breaks[1]),parseRangeMinutes(breaks[2])];
-      if(ranges.some(r=>minute>=r.start && minute<r.end)) count++;
+      if(ranges.some(r=>overlapsMinuteBlock(r,minute,slotEnd))) count++;
     });
     agentGrid.push(`<div class="agentslot ${count>0?'break':'off'}">${count}</div>`);
   });
@@ -1157,11 +1178,12 @@ function renderBreaks(week,weekPlan){
     agentGrid.push(`<div class="agentname">${agent.name}<small>${shiftInfo.name} · B1 ${breaks[0]} · Lunch ${breaks[1]} · B2 ${breaks[2]}</small></div>`);
     displayMinutes.forEach(min=>{
       const minute=parseClockMinutes(min);
+      const slotEnd=minute+30;
       let cls='off', label='';
-      if(minute>=ranges.shift.start && minute<ranges.shift.end){ cls='work'; label='•'; }
-      if(minute>=ranges.b1.start && minute<ranges.b1.end){ cls='break'; label=breaks[0]; }
-      if(minute>=ranges.lunch.start && minute<ranges.lunch.end){ cls='lunch'; label=breaks[1]; }
-      if(minute>=ranges.b2.start && minute<ranges.b2.end){ cls='break'; label=breaks[2]; }
+      if(overlapsMinuteBlock(ranges.shift,minute,slotEnd)){ cls='work'; label='•'; }
+      if(overlapsMinuteBlock(ranges.b1,minute,slotEnd)){ cls='break'; label=breaks[0]; }
+      if(overlapsMinuteBlock(ranges.lunch,minute,slotEnd)){ cls='lunch'; label=breaks[1]; }
+      if(overlapsMinuteBlock(ranges.b2,minute,slotEnd)){ cls='break'; label=breaks[2]; }
       agentGrid.push(`<div class="agentslot ${cls}">${label}</div>`);
     });
     agentGrid.push(`<div class="agenteditcell"><button class="btn editDayBreak" data-agent="${agent.id}" data-date="${focusDate}" data-b1="${formatStartFromRange(breaks[0])}" data-lunch="${formatStartFromRange(breaks[1])}" data-b2="${formatStartFromRange(breaks[2])}">Edit</button></div>`);
@@ -1209,6 +1231,269 @@ function renderBreaks(week,weekPlan){
       </div>
     </div>
   `;
+}
+
+function workingDaysInMonth2026(monthIndex){
+  let count=0;
+  const d=new Date(2026,monthIndex,1);
+  while(d.getMonth()===monthIndex){
+    if(d.getDay()!==5) count++; // exclude Friday
+    d.setDate(d.getDate()+1);
+  }
+  return count;
+}
+
+// Entitlement table from Jaidah Leave Utilization policy (14 April 2026)
+// gradeGroup: 'S' | 'senior' (P1/T1/P2/T2/M) | 'standard' (P3/T3/P4/T4)
+// schedule: '5day' | '6day'  — returns [first5yrs, after5yrs]
+const LP_ENT={
+  S:      {'5day':[25,27],'6day':[null,null]},
+  senior: {'5day':[23,25],'6day':[26,28]},
+  standard:{'5day':[17,23],'6day':[20,26]}
+};
+function getLpEntitlement(gradeGroup,schedule,yrs){
+  const row=(LP_ENT[gradeGroup]||LP_ENT.senior)[schedule]||[23,25];
+  return row[yrs>=5?1:0]||23;
+}
+
+function buildLeavePlan(data){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const TODAY_MONTH=3; // April 2026 = index 3
+  const joinedIn2026=Number(data.yearJoined)===2026;
+  const yrs=Number(data.yearsOfService)||0;
+  const entitlement=getLpEntitlement(data.gradeGroup||'senior',data.schedule||'5day',yrs);
+
+  let takenYtd=0;
+  let lastTakenMonth=TODAY_MONTH;
+  MONTHS.forEach((m,i)=>{
+    const v=Number(data.taken[m])||0;
+    if(v>0){ takenYtd+=v; if(i>lastTakenMonth) lastTakenMonth=i; }
+  });
+  takenYtd=Math.round(takenYtd*10)/10;
+
+  // Calculate how much the employee should have accrued so far in 2026
+  const today2026=new Date();
+  const jan1=new Date(2026,0,1);
+  const daysElapsed=Math.max(0,(today2026-jan1)/(1000*60*60*24));
+  const monthsElapsed=daysElapsed/30.4375; // average calendar days per month
+  const monthlyAccrual=entitlement/12;
+  const accruedYtd=Math.round(monthlyAccrual*monthsElapsed*10)/10;
+  // Derived carryover: balance = carryover + accrued - taken → carryover = balance - accrued + taken
+  const currentBalance=Number(data.currentBalance)||0;
+  const derivedCarryover=Math.round((currentBalance-accruedYtd+takenYtd)*10)/10;
+
+  let totalRequired, fullYearPool;
+  if(joinedIn2026){
+    // 1 unpaid day per completed working month in 2026 (e.g. joined Feb → 11 days)
+    const joinMonth0=Math.max(0,Math.min(11,Number(data.joinMonth)||0));
+    totalRequired=12-joinMonth0;
+    fullYearPool=0; // no paid leave for 2026 joiners in this first year
+  } else {
+    // Policy: annual entitlement + 12 extra working days must be used in 2026
+    totalRequired=entitlement+12;
+    // Total pool = derived carryover from 2025 + full 2026 annual entitlement
+    fullYearPool=derivedCarryover+entitlement;
+  }
+
+  const remainingPool=Math.max(0,fullYearPool-takenYtd);
+  const stillToTake=Math.max(0,totalRequired-takenYtd);
+  const paidAvailable=joinedIn2026?0:Math.min(stillToTake,remainingPool);
+  const unpaidNeeded=Math.max(0,stillToTake-paidAvailable);
+
+  const planStartMonth=Math.min(11,lastTakenMonth+1);
+  const planMonths=[];
+  for(let i=planStartMonth;i<=11;i++) planMonths.push(i);
+
+  let planRows=[];
+  if(planMonths.length>0 && stillToTake>0){
+    const n=planMonths.length;
+    if(joinedIn2026){
+      // 1 unpaid day per remaining month (non-consecutive policy)
+      planRows=planMonths.map(m=>({month:MONTHS[m],monthIndex:m,paid:0,unpaid:1,workDays:workingDaysInMonth2026(m)}));
+    } else if(data.unpaidPref==='end'&&unpaidNeeded>0){
+      const uM=Math.min(Math.max(1,Math.ceil(unpaidNeeded/2)),Math.floor(n/2)||1);
+      const pPM=Math.round(paidAvailable/n*10)/10;
+      const uPM=Math.round(unpaidNeeded/uM*10)/10;
+      planRows=planMonths.map((m,i)=>({month:MONTHS[m],monthIndex:m,paid:pPM,unpaid:i>=n-uM?uPM:0,workDays:workingDaysInMonth2026(m)}));
+    } else if(data.unpaidPref==='start'&&unpaidNeeded>0){
+      const uM=Math.min(Math.max(1,Math.ceil(unpaidNeeded/2)),Math.floor(n/2)||1);
+      const pPM=Math.round(paidAvailable/n*10)/10;
+      const uPM=Math.round(unpaidNeeded/uM*10)/10;
+      planRows=planMonths.map((m,i)=>({month:MONTHS[m],monthIndex:m,paid:pPM,unpaid:i<uM?uPM:0,workDays:workingDaysInMonth2026(m)}));
+    } else {
+      const pPM=Math.round(paidAvailable/n*10)/10;
+      const uPM=Math.round(unpaidNeeded/n*10)/10;
+      planRows=planMonths.map(m=>({month:MONTHS[m],monthIndex:m,paid:pPM,unpaid:uPM,workDays:workingDaysInMonth2026(m)}));
+    }
+  } else if(planMonths.length>0){
+    planRows=planMonths.map(m=>({month:MONTHS[m],monthIndex:m,paid:0,unpaid:0,workDays:workingDaysInMonth2026(m)}));
+  }
+
+  // Year-end balance = what paid leave remains after meeting the full requirement
+  // Positive = surplus (may carry forward), Negative = deducted from December payroll
+  const yearEndBalance=joinedIn2026?null:Math.round((fullYearPool-totalRequired)*10)/10;
+
+  return {
+    entitlement,totalRequired,
+    takenYtd,fullYearPool:Math.round(fullYearPool*10)/10,
+    remainingPool:Math.round(remainingPool*10)/10,
+    stillToTake:Math.round(stillToTake*10)/10,
+    paidAvailable:Math.round(paidAvailable*10)/10,
+    unpaidNeeded:Math.round(unpaidNeeded*10)/10,
+    yearEndBalance,
+    currentBalance,accruedYtd,derivedCarryover,
+    planRows,gradeGroup:data.gradeGroup,schedule:data.schedule,
+    yearsOfService:yrs,joinedIn2026,carryover:derivedCarryover
+  };
+}
+
+function renderLeavePlanResult(r){
+  const statusCls=r.unpaidNeeded===0?'ok':r.unpaidNeeded<=5?'warn':'bad';
+  const statusLabel=r.unpaidNeeded===0?'✓ On track':'⚠ Action needed';
+  let statusMsg, calcLine;
+  if(r.joinedIn2026){
+    statusMsg=`As a 2026 joiner, you are required to take <b>${r.totalRequired} days of unpaid leave</b> during 2026 on a non-consecutive basis (one day per completed working month). Spread this staggered — ideally 1–2 days per month.`;
+    calcLine=`Total unpaid days required: <b>${r.totalRequired}</b> &nbsp;·&nbsp; Already taken: <b>${r.takenYtd}</b> &nbsp;·&nbsp; Still to apply: <b>${r.stillToTake}</b>`;
+  } else {
+    const shortfall=r.unpaidNeeded>0;
+    statusMsg=shortfall
+      ?`Your carryover and 2026 entitlement (<b>${r.fullYearPool} days</b>) are not enough to cover the required <b>${r.totalRequired} days</b>. You will need to apply for approximately <b>${r.unpaidNeeded} days of unpaid leave</b> on a non-consecutive basis. Any negative balance at year-end will be recovered from the December payroll.`
+      :`Your carryover and 2026 entitlement (<b>${r.fullYearPool} days</b>) are sufficient to cover the full requirement of <b>${r.totalRequired} days</b> with paid leave only. No unpaid leave or payroll recovery required, provided the plan is executed as scheduled.`;
+    calcLine=`Entitlement: <b>${r.entitlement} days</b> (${r.yearsOfService>=5?'after':'first'} 5 yrs, ${r.schedule==='6day'?'6-day':'5-day'} schedule) &nbsp;·&nbsp; Derived carryover 2025: <b>${r.derivedCarryover} days</b> &nbsp;·&nbsp; Full pool: <b>${r.fullYearPool} days</b> &nbsp;·&nbsp; Required: <b>${r.totalRequired} days</b> (${r.entitlement}+12) &nbsp;·&nbsp; Taken YTD: <b>${r.takenYtd} days</b>`;
+  }
+  const co=r.derivedCarryover;
+  const coColor=co>0?'rgba(56,189,248,.25)':co===0?'rgba(148,163,184,.2)':'rgba(251,191,36,.25)';
+  const coBorder=co>0?'rgba(56,189,248,.5)':co===0?'rgba(148,163,184,.35)':'rgba(251,191,36,.5)';
+  const coValueColor=co>0?'#38bdf8':co===0?'var(--muted)':'var(--warn)';
+  return `<div class="card"><div class="ch">Your result <span style="margin-left:8px;padding:2px 10px;border-radius:999px;font-size:11px;background:${r.unpaidNeeded===0?'rgba(22,163,74,.3)':r.unpaidNeeded<=5?'rgba(146,64,14,.35)':'rgba(153,27,27,.35)'}">${statusLabel}</span></div>
+  ${r.joinedIn2026?'':`<div class="grid4" style="margin-bottom:14px">
+    <div class="met"><div class="l">Annual entitlement</div><div class="v">${r.entitlement}</div><div class="s">working days</div></div>
+    <div class="met"><div class="l">Total required in 2026</div><div class="v">${r.totalRequired}</div><div class="s">entitlement + 12 extra days</div></div>
+    <div class="met"><div class="l">Paid leave available</div><div class="v" style="color:var(--ok)">${r.paidAvailable}</div><div class="s">days (carryover + entitlement)</div></div>
+    <div class="met"><div class="l">Unpaid leave needed</div><div class="v" style="color:${r.unpaidNeeded>0?'var(--bad)':'var(--ok)'}">${r.unpaidNeeded}</div><div class="s">days</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card" style="margin-bottom:0;border:2px solid ${coBorder};background:${coColor}">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Estimated carryover from 2025</div>
+      <div style="font-size:36px;font-weight:800;color:${coValueColor}">${co>=0?'+':''}${co} days</div>
+      <div class="small" style="margin-top:6px;line-height:1.6">${co>0?`You brought <b>${co} days</b> forward from 2025.`:co===0?`No days carried from 2025 — your balance exactly matches accrual.`:`Your current balance is lower than expected accrual — you may have had a negative start to 2025.`}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;border-top:1px solid var(--line);padding-top:6px">
+        Current balance &nbsp;<b>${r.currentBalance}d</b><br>
+        + Leave taken YTD &nbsp;<b>+${r.takenYtd}d</b><br>
+        − Accrued so far in 2026 &nbsp;<b>−${r.accruedYtd}d</b><br>
+        <span style="font-weight:700;color:${coValueColor}">= ${co>=0?'+':''}${co}d carryover</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0;border:2px solid ${r.yearEndBalance>=0?'rgba(74,222,128,.35)':r.yearEndBalance>=-5?'rgba(251,191,36,.35)':'rgba(252,165,165,.35)'}">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Projected year-end balance</div>
+      <div style="font-size:36px;font-weight:800;color:${r.yearEndBalance>=0?'var(--ok)':r.yearEndBalance>=-5?'var(--warn)':'var(--bad)'}">${r.yearEndBalance>=0?'+':''}${r.yearEndBalance} days</div>
+      <div class="small" style="margin-top:6px;line-height:1.6">${r.yearEndBalance>0?`<b>Surplus:</b> ${r.yearEndBalance} day(s) remaining after meeting all requirements. Confirm carry-forward rules with your HRBP.`:r.yearEndBalance===0?`<b>Perfectly balanced:</b> Your pool exactly covers the full 2026 requirement.`:`<b>Deficit:</b> ${Math.abs(r.yearEndBalance)} day(s) short — recovered from December payroll unless covered by unpaid leave first.`}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7;border-top:1px solid var(--line);padding-top:6px">
+        Carryover + entitlement &nbsp;<b>${r.fullYearPool}d</b><br>
+        − Total required &nbsp;<b>−${r.totalRequired}d</b><br>
+        <span style="font-weight:700;color:${r.yearEndBalance>=0?'var(--ok)':'var(--bad)'}">= ${r.yearEndBalance>=0?'+':''}${r.yearEndBalance}d at Dec 31</span>
+      </div>
+    </div>
+  </div>`}
+  <div class="${statusCls}" style="line-height:1.7">${statusMsg}</div>
+  <div class="small" style="margin-top:10px;line-height:1.8"><b>Calculation:</b> ${calcLine}</div></div>`;
+}
+
+function renderLeavePlanMonthly(r){
+  const MFull=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if(!r.planRows.length) return `<div class="card"><div class="warn">No remaining months to plan — you have accounted for all months in the leave taken entries above.</div></div>`;
+  let cumTaken=r.takenYtd;
+  const tableRows=r.planRows.map(row=>{
+    cumTaken=Math.round((cumTaken+row.paid+row.unpaid)*10)/10;
+    const target=r.joinedIn2026?r.totalRequired:r.totalRequired;
+    const remaining=Math.round((target-cumTaken)*10)/10;
+    return `<tr><td>${MFull[row.monthIndex]}</td><td style="text-align:center">${row.workDays}</td><td style="text-align:center;color:var(--ok)">${row.paid>0?row.paid:'—'}</td><td style="text-align:center;color:${row.unpaid>0?'var(--bad)':'var(--muted)'}">${row.unpaid>0?row.unpaid:'—'}</td><td style="text-align:center">${cumTaken}</td><td style="text-align:center;color:${remaining<=0?'var(--ok)':'var(--muted)'}">${Math.max(0,remaining)}</td></tr>`;
+  }).join('');
+  const calCards=r.planRows.map(row=>{
+    const total=Math.round((row.paid+row.unpaid)*10)/10;
+    const pct=row.workDays>0?Math.round((total/row.workDays)*100):0;
+    const col=row.unpaid>0?'var(--bad)':'var(--ok)';
+    return `<div class="met" style="text-align:center"><div class="l">${MFull[row.monthIndex]}</div><div class="v" style="color:${total>0?col:'var(--muted)'}">${total>0?total:'—'}</div><div class="s">${total>0?`${pct}% of ${row.workDays} work days`:'no leave'}</div>${row.paid>0?`<div style="font-size:10px;color:var(--ok);margin-top:3px">${row.paid}d paid</div>`:''} ${row.unpaid>0?`<div style="font-size:10px;color:var(--bad)">${row.unpaid}d unpaid</div>`:''}</div>`;
+  }).join('');
+  return `<div class="card"><div class="ch">Recommended monthly plan</div><div class="small" style="margin-bottom:12px">${r.joinedIn2026?'One day of unpaid leave per completed working month, spread on a non-consecutive basis as recommended by the 2026 policy letter.':'Paid leave is used first each month. Unpaid days are spread according to your preference. Adjust each month as needed and rebuild the plan.'}</div><div class="rowflex" style="margin-bottom:14px"><button class="btn btnp" id="lpViewCal" type="button">Calendar</button><button class="btn" id="lpViewTable" type="button">Table</button></div><div id="lpCalView"><div class="grid4">${calCards}</div></div><div id="lpTableView" style="display:none"><table class="tbl"><thead><tr><th>Month</th><th style="text-align:center">Working Days</th><th style="text-align:center">Take (Paid)</th><th style="text-align:center">Take (Unpaid)</th><th style="text-align:center">Cumulative Taken</th><th style="text-align:center">Still Needed</th></tr></thead><tbody>${tableRows}</tbody></table></div></div>`;
+}
+
+function renderLeavePortal(){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const agents=activeAgents();
+  if(!agents.length) return `<div class="pg"><div class="card"><div class="bad">No active agents found. Please configure the team first.</div></div></div>`;
+  state.leavePlannerData||={};
+  const selId=state.leavePlannerData._selectedAgent||agents[0].id;
+  const lpd=state.leavePlannerData[selId]||{};
+  const gradeGroup=lpd.gradeGroup||'senior';
+  const schedule=lpd.schedule||'5day';
+  const yrs=lpd.yearsOfService??2;
+  const yrJoined=lpd.yearJoined||2023;
+  const joinMonth=lpd.joinMonth??1;
+  const currentBal=lpd.currentBalance??0;
+  const taken=lpd.taken||{};
+  const unprefPref=lpd.unpaidPref||'spread';
+  const joinedIn2026=Number(yrJoined)===2026;
+  const agentOpts=agents.map(a=>`<option value="${a.id}"${a.id===selId?' selected':''}>${a.name}</option>`).join('');
+  const gradeOpts=[
+    {v:'S',l:'S grade — 25 days (5-day) or N/A (6-day)'},
+    {v:'senior',l:'P1 / T1 / P2 / T2 / M grade — 23–28 days'},
+    {v:'standard',l:'P3 / T3 / P4 / T4 grade — 17–26 days'}
+  ].map(g=>`<option value="${g.v}"${g.v===gradeGroup?' selected':''}>${g.l}</option>`).join('');
+  const ent=getLpEntitlement(gradeGroup,schedule,yrs);
+  const totalReq=joinedIn2026?Math.max(0,12-(joinMonth||0)):ent+12;
+  const monthInputs=MONTHS.map(m=>`<div class="field tight" style="min-width:0"><label style="white-space:nowrap">${m}</label><input type="number" class="lpTaken" data-month="${m}" min="0" max="40" step="0.5" value="${Number(taken[m])||0}" style="width:100%;text-align:center"></div>`).join('');
+  const joinMonthOpts=MONTH_NAMES.map((n,i)=>`<option value="${i}"${i===joinMonth?' selected':''}>${n}</option>`).join('');
+  return `<div class="pg">
+  <div style="margin-bottom:14px"><div style="font-size:20px;font-weight:800;margin-bottom:4px">2026 Employee Leave Planner</div><div class="small">Based on the <em>Annual Leave Utilization to Support Business Continuity</em> memo — 14 April 2026.</div></div>
+  <div class="card">
+    <div class="ch">Tell us about your leave situation</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px">
+      <div class="field"><label>Agent</label><select id="lpAgent">${agentOpts}</select></div>
+      <div class="field"><label>Grade group</label><select id="lpGrade">${gradeOpts}</select></div>
+      <div class="field"><label>Work schedule</label><select id="lpSchedule"><option value="5day"${schedule==='5day'?' selected':''}>5-day week (rotating off day)</option><option value="6day"${schedule==='6day'?' selected':''}>6-day week (fixed off day)</option></select></div>
+      <div class="field"><label>Completed years of service</label><input type="number" id="lpYears" min="0" max="50" value="${yrs}"><div class="small" style="margin-top:3px">Years fully completed (≥5 unlocks higher bracket)</div></div>
+      <div class="field"><label>Year you joined</label><input type="number" id="lpYearJoined" min="2000" max="2026" value="${yrJoined}"><div class="small" style="margin-top:3px">Joined in 2026 = different policy rule</div></div>
+      <div class="field" id="lpJoinMonthWrap"${joinedIn2026?'':' style="display:none"'}><label>Month you joined (2026)</label><select id="lpJoinMonth">${joinMonthOpts}</select></div>
+    </div>
+    <div id="lpEntitlementBadge" class="note" style="margin-bottom:14px">
+      <b>Entitlement:</b> ${ent} working days/year &nbsp;·&nbsp; <b>Total required in 2026:</b> ${joinedIn2026?`${totalReq} days unpaid (1 per completed working month)`:`${totalReq} days (${ent} entitlement + 12 extra)`}
+    </div>
+    ${joinedIn2026?'':`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:18px">
+      <div class="field"><label>Current leave balance</label><input type="number" id="lpCurrentBalance" step="0.5" value="${currentBal}"><div class="small" style="margin-top:4px">Enter the balance shown right now in Adrenalin. The app will automatically calculate your 2025 carryover.</div></div>
+    </div>`}
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">Leave already taken in 2026</div>
+    <div class="small" style="margin-bottom:10px">Enter the number of days already taken in each month. Leave blank or zero where nothing was taken.</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px">${monthInputs}</div>
+    ${joinedIn2026?'':`<div class="field" style="max-width:380px;margin-bottom:16px"><label>Preferred approach for any unpaid leave, if needed</label><select id="lpUnpaidPref"><option value="spread"${unprefPref==='spread'?' selected':''}>Spread evenly across remaining months</option><option value="end"${unprefPref==='end'?' selected':''}>Concentrate at year-end (Nov–Dec)</option><option value="start"${unprefPref==='start'?' selected':''}>Use as early as possible</option></select><div class="small" style="margin-top:4px">This shapes how unpaid days are distributed when your pool is insufficient to cover the requirement.</div></div>`}
+    <div class="rowflex">
+      <button class="btn btnp" id="lpBuild" type="button">Build my leave plan</button>
+      <button class="btn" id="lpSaveData" type="button">Save details</button>
+      <button class="btn" id="lpClearMonths" type="button">Clear months</button>
+    </div>
+  </div>
+  <div id="lpResult"></div>
+  <div id="lpMonthly"></div>
+  <div class="card">
+    <div class="ch">Policy rules used in this planner</div>
+    <div class="small" style="line-height:1.9">
+      <div>• <b>Employees who joined in 2025 or earlier:</b> Must fully use their annual entitlement <em>plus an extra 12 working days</em> between 1 January and 31 December 2026. Insufficient balances require unpaid leave (non-consecutive). Any negative balance at year-end is recovered from the December payroll.</div>
+      <div>• <b>Employees who joined in 2026:</b> Required to take one day of unpaid leave for each completed working month in 2026 (e.g. joined February → 11 days unpaid by year-end). Leave should be staggered (1–2 non-consecutive days per month).</div>
+      <div>• <b>Entitlement table (working days):</b></div>
+      <table class="tbl" style="margin:6px 0 10px;max-width:620px">
+        <thead><tr><th>Grade group</th><th>5-day / first 5 yrs</th><th>5-day / after 5 yrs</th><th>6-day / first 5 yrs</th><th>6-day / after 5 yrs</th></tr></thead>
+        <tbody>
+          <tr><td>S grade</td><td>25</td><td>27</td><td colspan="2" style="color:var(--muted)">N/A</td></tr>
+          <tr><td>P1 / T1 / P2 / T2 / M</td><td>23</td><td>25</td><td>26</td><td>28</td></tr>
+          <tr><td>P3 / T3 / P4 / T4</td><td>17</td><td>23</td><td>20</td><td>26</td></tr>
+        </tbody>
+      </table>
+      <div>• <b>Total pool (pre-2026 joiners):</b> Carryover from 2025 + full 2026 annual entitlement. If pool &lt; total required → unpaid leave or December payroll deduction.</div>
+      <div>• <b>Working days:</b> Saturday to Thursday (excluding Friday). Leave plans must be submitted in Adrenalin — contact your manager or HRBP for support.</div>
+    </div>
+  </div>
+</div>`;
 }
 
 
@@ -1751,6 +2036,56 @@ function bindPageActions(){
   };
   const exportBtn=document.getElementById('exportJson'); if(exportBtn) exportBtn.onclick=()=>{document.getElementById('exportBox').innerHTML=`<textarea class="exporttxt">${JSON.stringify(state,null,2)}</textarea>`;};
   const resetBtn=document.getElementById('resetAll'); if(resetBtn) resetBtn.onclick=()=>{ if(confirm('Reset all saved data?')){ localStorage.removeItem(STORAGE_KEY); state=loadState(); render(); } };
+  // Leave planner event bindings
+  const lpAgent=document.getElementById('lpAgent');
+  if(lpAgent) lpAgent.onchange=()=>{ state.leavePlannerData||={}; state.leavePlannerData._selectedAgent=Number(lpAgent.value); saveState(); render(); };
+  function lpCollectData(){
+    const yearJoined=Number(document.getElementById('lpYearJoined')?.value)||2023;
+    const data={
+      gradeGroup:document.getElementById('lpGrade')?.value||'senior',
+      schedule:document.getElementById('lpSchedule')?.value||'5day',
+      yearsOfService:Number(document.getElementById('lpYears')?.value)||0,
+      yearJoined,
+      joinMonth:Number(document.getElementById('lpJoinMonth')?.value)||0,
+      currentBalance:Number(document.getElementById('lpCurrentBalance')?.value)||0,
+      taken:{},
+      unpaidPref:document.getElementById('lpUnpaidPref')?.value||'spread'
+    };
+    document.querySelectorAll('.lpTaken').forEach(el=>{ data.taken[el.dataset.month]=Number(el.value)||0; });
+    return data;
+  }
+  // Show/hide join month field based on join year
+  ['lpYearJoined'].forEach(id=>{ const el=document.getElementById(id); if(el) el.oninput=()=>{ const wrap=document.getElementById('lpJoinMonthWrap'); if(wrap) wrap.style.display=Number(el.value)===2026?'':'none'; updateLpBadge(); }; });
+  function updateLpBadge(){
+    const g=document.getElementById('lpGrade')?.value||'senior';
+    const s=document.getElementById('lpSchedule')?.value||'5day';
+    const y=Number(document.getElementById('lpYears')?.value)||0;
+    const yr=Number(document.getElementById('lpYearJoined')?.value)||2023;
+    const jm=Number(document.getElementById('lpJoinMonth')?.value)||0;
+    const ent=getLpEntitlement(g,s,y);
+    const req=yr===2026?Math.max(0,12-jm):ent+12;
+    const badge=document.getElementById('lpEntitlementBadge');
+    if(badge) badge.innerHTML=`<b>Entitlement:</b> ${ent} working days/year &nbsp;·&nbsp; <b>Total required in 2026:</b> ${yr===2026?`${req} days unpaid (1 per completed working month)`:`${req} days (${ent} entitlement + 12 extra)`}`;
+  }
+  ['lpGrade','lpSchedule','lpYears','lpJoinMonth'].forEach(id=>{ const el=document.getElementById(id); if(el) el.oninput=updateLpBadge; if(el) el.onchange=updateLpBadge; });
+  const lpBuild=document.getElementById('lpBuild');
+  if(lpBuild) lpBuild.onclick=()=>{
+    const agentId=Number(document.getElementById('lpAgent')?.value);
+    const data=lpCollectData();
+    state.leavePlannerData||={};
+    state.leavePlannerData[agentId]=data;
+    state.leavePlannerData._selectedAgent=agentId;
+    saveState();
+    const r=buildLeavePlan(data);
+    const resEl=document.getElementById('lpResult'); if(resEl){ resEl.innerHTML=renderLeavePlanResult(r); resEl.scrollIntoView({behavior:'smooth',block:'start'}); }
+    const monEl=document.getElementById('lpMonthly'); if(monEl) monEl.innerHTML=renderLeavePlanMonthly(r);
+    const calBtn=document.getElementById('lpViewCal'); const tblBtn=document.getElementById('lpViewTable');
+    if(calBtn) calBtn.onclick=()=>{ document.getElementById('lpCalView').style.display=''; document.getElementById('lpTableView').style.display='none'; calBtn.classList.add('btnp'); tblBtn&&tblBtn.classList.remove('btnp'); };
+    if(tblBtn) tblBtn.onclick=()=>{ document.getElementById('lpCalView').style.display='none'; document.getElementById('lpTableView').style.display=''; tblBtn.classList.add('btnp'); calBtn&&calBtn.classList.remove('btnp'); };
+  };
+  const lpSaveData=document.getElementById('lpSaveData');
+  if(lpSaveData) lpSaveData.onclick=()=>{ const agentId=Number(document.getElementById('lpAgent')?.value); const data=lpCollectData(); state.leavePlannerData||={}; state.leavePlannerData[agentId]=data; state.leavePlannerData._selectedAgent=agentId; saveState(); const btn=document.getElementById('lpSaveData'); if(btn){const o=btn.textContent;btn.textContent='Saved ✓';setTimeout(()=>btn.textContent=o,1500);} };
+  const lpClear=document.getElementById('lpClearMonths'); if(lpClear) lpClear.onclick=()=>{ document.querySelectorAll('.lpTaken').forEach(el=>el.value=0); };
   const moon=document.getElementById('themeMoon'); if(moon) moon.onclick=()=>setTheme('dark');
   const sun=document.getElementById('themeSun'); if(sun) sun.onclick=()=>setTheme('light');
   const burgerToggle=document.getElementById('burgerToggle');
