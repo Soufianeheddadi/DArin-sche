@@ -644,28 +644,140 @@ function getAgentLink(agentId){return currentAgentLink();}
 function countWeeklyLeaves(agentId,week){
   const leaveMap=getLeaveMap(); let c=0; for(let i=0;i<7;i++){ const d=new Date(week.start); d.setDate(d.getDate()+i); if(leaveMap[`${agentId}|${fmtDate(d)}`]) c++; } return c;
 }
-function autoSecondOffDate(agent,week){
-  if(countWeeklyLeaves(agent.id,week)>=2) return null; // leave already gives rest
-  let best=null;
-  const preferred=normalizePreferredOff(agent.preferredOff);
-  const hasPreferred=preferred!==-1;
+function stableWeekNoise(seed){
+  let hash=0;
+  for(let i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
+  return Math.abs(hash%1000)/1000;
+}
+function initOffHistoryRecord(){
+  return {dayCounts:{0:0,1:0,2:0,3:0,4:0,6:0},weekendCount:0,weekly:{},monthWeekend:{}};
+}
+function getOffHistoryRecord(history,agentId){
+  history.byAgent[agentId] ||= initOffHistoryRecord();
+  return history.byAgent[agentId];
+}
+function monthKeyFromDate(dateStr){ return String(dateStr).slice(0,7); }
+function weekStartSaturday(dateObj){
+  const d=new Date(dateObj);
+  while(d.getDay()!==6) d.setDate(d.getDate()-1);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function countWeeklyLeavesFromMap(agentId,week,leaveMap){
+  let c=0;
   for(let i=0;i<7;i++){
-    const d=new Date(week.start); d.setDate(d.getDate()+i); const dow=d.getDay();
+    const d=new Date(week.start);
+    d.setDate(d.getDate()+i);
+    if(leaveMap[`${agentId}|${fmtDate(d)}`]) c++;
+  }
+  return c;
+}
+function registerSecondOff(history,agentId,dateStr,wkKey){
+  const rec=getOffHistoryRecord(history,agentId);
+  const dow=new Date(dateStr).getDay();
+  rec.dayCounts[dow]=(rec.dayCounts[dow]||0)+1;
+  rec.weekly[wkKey]=dow;
+  if(dow===0 || dow===6){
+    rec.weekendCount++;
+    const mKey=monthKeyFromDate(dateStr);
+    rec.monthWeekend[mKey]=(rec.monthWeekend[mKey]||0)+1;
+  }
+}
+function pickSecondOffDate(agent,week,leaveMap,holidayMap,history,weekLoad){
+  const wkKey=weekKey(week.start);
+  const prevWeekStart=new Date(week.start);
+  prevWeekStart.setDate(prevWeekStart.getDate()-7);
+  const prevWkKey=weekKey(prevWeekStart);
+  const rec=getOffHistoryRecord(history,agent.id);
+  const prevDow=rec.weekly[prevWkKey];
+  const preferred=normalizePreferredOff(agent.preferredOff);
+  const overrides=state.weekOverrides[wkKey]||{};
+  let best=null;
+  for(let i=0;i<7;i++){
+    const d=new Date(week.start);
+    d.setDate(d.getDate()+i);
+    const dow=d.getDay();
     if(dow===5) continue; // Friday fixed off handled separately
+    const ds=fmtDate(d);
+    const itemKey=`${agent.id}|${ds}`;
+    const ov=overrides[itemKey];
+    if(leaveMap[itemKey] || holidayMap[itemKey]) continue;
+    if(ov && ov.status && ov.status!=='AUTO' && ov.status!=='WORK') continue;
     const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
-    const preferenceBias=hasPreferred ? (dow===preferred?0:2) : stableOffNoise(agent.id,fmtDate(d));
-    const score=operationBias+preferenceBias;
-    if(!best || score<best.score) best={date:fmtDate(d),score};
+    let score=operationBias;
+    score += (weekLoad[dow]||0)*0.9;
+    score += (rec.dayCounts[dow]||0)*0.55;
+    if(prevDow===dow) score += 3;
+    if(preferred!==-1){
+      score += (dow===preferred ? -0.35 : 0.15);
+    }
+    const isWeekend=(dow===0 || dow===6);
+    const monthKey=monthKeyFromDate(ds);
+    const monthWeekendCount=rec.monthWeekend[monthKey]||0;
+    if(monthWeekendCount===0){
+      score += isWeekend ? -1.8 : 1.2; // ensure each agent gets a weekend off once per month when possible
+    }else if(isWeekend){
+      score += 0.85;
+    }
+    if(isWeekend) score += (rec.weekendCount||0)*0.35;
+    score += stableWeekNoise(`${agent.id}|${wkKey}|${dow}`)*0.15;
+    if(!best || score<best.score) best={date:ds,score,dow};
   }
   return best?best.date:null;
+}
+function buildSecondOffHistory(week,leaveMap,holidayMap){
+  const history={byAgent:{}};
+  const agents=activeAgents().slice().sort((a,b)=>a.id-b.id);
+  const start=new Date(week.start);
+  start.setDate(start.getDate()-(52*7));
+  const cursor=weekStartSaturday(start);
+  while(cursor<week.start){
+    const histWeek={start:new Date(cursor), end:new Date(cursor)};
+    histWeek.end.setDate(histWeek.end.getDate()+6);
+    const wkLoad={0:0,1:0,2:0,3:0,4:0,6:0};
+    const histWeekKey=weekKey(histWeek.start);
+    agents.forEach(agent=>{
+      const secondOff=pickSecondOffDate(agent,histWeek,leaveMap,holidayMap,history,wkLoad);
+      if(secondOff){
+        const dow=new Date(secondOff).getDay();
+        wkLoad[dow]=(wkLoad[dow]||0)+1;
+        registerSecondOff(history,agent.id,secondOff,histWeekKey);
+      }
+    });
+    cursor.setDate(cursor.getDate()+7);
+  }
+  return history;
 }
 function getWeekPlan(week){
   const leaveMap=getLeaveMap();
   const holidayMap=getHolidayMap(leaveMap);
   const overrides=state.weekOverrides[weekKey(week.start)]||{};
+  const history=buildSecondOffHistory(week,leaveMap,holidayMap);
+  const weekLoad={0:0,1:0,2:0,3:0,4:0,6:0};
+  const secondOffByAgent={};
+  const monthKey=state.month;
+  const orderedAgents=activeAgents().slice().sort((a,b)=>{
+    const ra=getOffHistoryRecord(history,a.id);
+    const rb=getOffHistoryRecord(history,b.id);
+    const aMonth=ra.monthWeekend[monthKey]||0;
+    const bMonth=rb.monthWeekend[monthKey]||0;
+    if(aMonth!==bMonth) return aMonth-bMonth;
+    if(ra.weekendCount!==rb.weekendCount) return ra.weekendCount-rb.weekendCount;
+    return a.id-b.id;
+  });
+  const thisWeekKey=weekKey(week.start);
+  orderedAgents.forEach(agent=>{
+    const secondOff=pickSecondOffDate(agent,week,leaveMap,holidayMap,history,weekLoad);
+    secondOffByAgent[agent.id]=secondOff;
+    if(secondOff){
+      const dow=new Date(secondOff).getDay();
+      weekLoad[dow]=(weekLoad[dow]||0)+1;
+      registerSecondOff(history,agent.id,secondOff,thisWeekKey);
+    }
+  });
   const plan={};
   activeAgents().forEach(agent=>{
-    const secondOff=autoSecondOffDate(agent,week);
+    const secondOff=secondOffByAgent[agent.id]||null;
     for(let i=0;i<7;i++){
       const d=new Date(week.start); d.setDate(d.getDate()+i); const ds=fmtDate(d); const k=`${agent.id}|${ds}`;
       let status='WORK'; let reason='';

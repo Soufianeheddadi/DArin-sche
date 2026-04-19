@@ -169,6 +169,7 @@ Once the planning is ready, use the agent-facing link so team members can open t
 - Fixed duplicate top bars/theme toggles in agent view by hiding global top bar after agent entry.
 - Added Admin improvements for team management: add agent and deep-delete agent cleanup.
 - Improved sync consistency by ensuring key UI actions trigger save/sync updates.
+- Upgraded second OFF-day assignment with fairness rotation controls, anti-repeat behavior, and monthly weekend (Saturday/Sunday) balancing across agents.
 
 ## Website links
 
