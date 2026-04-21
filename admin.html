@@ -256,6 +256,7 @@ const STORAGE_KEY='jaidah_roster_v26';
 const CLOUD_MASTER_KEY='jaidah_cloud_master_key_v26';
 const THEME_KEY='jaidah_theme_v1';
 const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
+const SYNC_BASE=location.origin+'/sync.php';
 let syncTimer=null;
 let cloudPullBusy=false;
 let suppressNextSave=false;
@@ -1051,7 +1052,7 @@ function applyBinToUrl(binId){
   history.replaceState({},'',u.toString());
 }
 async function loadCloudState(binId){
-  const data=await fetchJson(`https://api.jsonbin.io/v3/b/${binId}/latest`, {headers:{'X-Bin-Meta':'false'}});
+  const data=await fetchJson(`${SYNC_BASE}?bin=${binId}`, {headers:{'X-Bin-Meta':'false'}});
   if(!data || !data.agents) throw new Error('Cloud record is empty or invalid.');
   state=data;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1065,7 +1066,7 @@ async function pullCloudStateIfChanged(){
   if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
   cloudPullBusy=true;
   try{
-    const data=await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}/latest`, {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
+    const data=await fetchJson(`${SYNC_BASE}?bin=${cloudStatus.binId}`, {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
     if(data && data.agents){
       const localRaw=JSON.stringify(state);
       const remoteRaw=JSON.stringify(data);
@@ -1085,13 +1086,11 @@ async function pullCloudStateIfChanged(){
   }
 }
 async function createCloudBin(masterKey){
-  const data=await fetchJson('https://api.jsonbin.io/v3/b',{
+  const data=await fetchJson(SYNC_BASE,{
     method:'POST',
     headers:{
       'Content-Type':'application/json',
-      'X-Master-Key': masterKey,
-      'X-Bin-Private':'false',
-      'X-Bin-Name':'Jaidah CX Roster'
+      'X-Master-Key': masterKey
     },
     body: JSON.stringify(publicState())
   });
@@ -1102,7 +1101,7 @@ async function saveCloudNow(){
   cloudStatus.saving=true;
   cloudStatus.lastError='';
   try{
-    await fetchJson(`https://api.jsonbin.io/v3/b/${cloudStatus.binId}`,{
+    await fetchJson(`${SYNC_BASE}?bin=${cloudStatus.binId}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':cloudStatus.masterKey},
       body: JSON.stringify(publicState())
@@ -1141,7 +1140,7 @@ function updateCloudBanner(){
     html += `<div class="small" style="margin-bottom:8px">Admin link: ${escapeHtml(currentAdminLink())}</div>`;
     html += `<div class="small">Agent link: ${escapeHtml(currentAgentLink())}</div>`;
   }else{
-    html += `<div class="warn">Cloud is not connected yet. Paste your JSONBin Master Key below and click Connect cloud.</div>`;
+    html += `<div class="warn">Cloud is not connected yet. Paste your Sync API Key below and click Connect cloud.</div>`;
   }
   if(cloudStatus.lastError) html += `<div class="bad" style="margin-top:8px">${escapeHtml(cloudStatus.lastError)}</div>`;
   el.innerHTML=html;
@@ -2224,7 +2223,7 @@ function bindPageActions(){
   const connectCloud=document.getElementById('connectCloud');
   if(connectCloud) connectCloud.onclick=async ()=>{
     const key=(document.getElementById('cloudMasterKey').value || '').trim();
-    if(!key) return alert('Paste your JSONBin Master Key first.');
+    if(!key) return alert('Paste your Sync API Key first.');
     cloudStatus.masterKey=key;
     localStorage.setItem(CLOUD_MASTER_KEY, key);
     try{

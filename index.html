@@ -270,6 +270,7 @@ const defaultAgents=[
 const STORAGE_KEY='jaidah_roster_v26';
 const THEME_KEY='jaidah_theme_v1';
 const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
+const SYNC_BASE=location.origin+'/sync.php';
 let cloudSyncBusy=false;
 const shiftLabel={1:'08:00-17:30',2:'09:30-19:00'};
 const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
@@ -735,7 +736,7 @@ function updateSyncBadge(isOn){
 }
 
 async function fetchCloudState(binId){
-  var res = await fetch('https://api.jsonbin.io/v3/b/' + binId + '/latest', {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
+  var res = await fetch(SYNC_BASE + '?bin=' + binId, {headers:{'X-Bin-Meta':'false'}, cache:'no-store'});
   var data = null;
   try{ data = await res.json(); }catch(e){}
   if(!res.ok || !data || !data.agents) throw new Error('Cloud sync failed');
