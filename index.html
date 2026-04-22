@@ -273,6 +273,8 @@ const BIN_PARAM=(new URL(location.href)).searchParams.get('bin') || '';
 const SYNC_BASE=location.origin+'/sync.php';
 let cloudSyncBusy=false;
 const shiftLabel={1:'08:00-17:30',2:'09:30-19:00'};
+// Minimum agents required working on each day (JS day number: 0=Sun … 6=Sat)
+const requiredByDay={6:10,0:11,1:11,2:11,3:10,4:9,5:0};
 const defaultRamadan={enabled:false,start:'',end:'',names:{1:'Ramadan Shift 1',2:'Ramadan Shift 2'},times:{1:'08:00-14:00',2:'09:00-15:00'},agentAssignments:{},saved:false};
 
 const breakTemplates={
@@ -448,8 +450,19 @@ function stableWeekNoise(seed){
   for(var i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
   return Math.abs(hash%1000)/1000;
 }
+// ── SECOND OFF-DAY CONSTANTS ──────────────────────────────────────────────────
+var WEEKDAY_POOL=[1,2,3,4]; // Mon Tue Wed Thu
+
+// ── HISTORY RECORD ────────────────────────────────────────────────────────────
 function initOffHistoryRecord(){
-  return {dayCounts:{0:0,1:0,2:0,3:0,4:0,6:0},weekendCount:0,weekly:{},monthWeekend:{}};
+  return {
+    dayCounts:{0:0,1:0,2:0,3:0,4:0,6:0},
+    lastWeekByDow:{},
+    weekendCount:0,
+    lastWeekendDate:'',
+    weekly:{},
+    monthWeekend:{}
+  };
 }
 function getOffHistoryRecord(history,agentId){
   history.byAgent[agentId] = history.byAgent[agentId] || initOffHistoryRecord();
@@ -475,49 +488,100 @@ function registerSecondOff(history,agentId,dateStr,wkKey){
   var rec=getOffHistoryRecord(history,agentId);
   var dow=new Date(dateStr).getDay();
   rec.dayCounts[dow]=(rec.dayCounts[dow]||0)+1;
+  rec.lastWeekByDow[dow]=wkKey;
   rec.weekly[wkKey]=dow;
-  if(dow===0 || dow===6){
+  if(dow===0||dow===6){
     rec.weekendCount++;
+    rec.lastWeekendDate=dateStr;
     var mKey=monthKeyFromDate(dateStr);
     rec.monthWeekend[mKey]=(rec.monthWeekend[mKey]||0)+1;
   }
 }
+
+// ── WEEKEND-OFF HELPERS ───────────────────────────────────────────────────────
+function agentWeekendSide(agentId,monthKey){
+  var h=0; var s=String(agentId)+'|'+monthKey+'|side';
+  for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return Math.abs(h)%2===0?6:0;
+}
+function agentWeekendWeekIndex(agentId,monthKey,numWeeks){
+  var h=0; var s=String(agentId)+'|'+monthKey+'|widx';
+  for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return Math.abs(h)%numWeeks;
+}
+
+// ── CORE PICKER ───────────────────────────────────────────────────────────────
 function pickSecondOffDate(agent,week,leaveMap,holidayMap,history,weekLoad){
   var wkKey=weekKey(week.start);
-  var prevWeekStart=new Date(week.start);
-  prevWeekStart.setDate(prevWeekStart.getDate()-7);
-  var prevWkKey=weekKey(prevWeekStart);
   var rec=getOffHistoryRecord(history,agent.id);
-  var prevDow=rec.weekly[prevWkKey];
-  var preferred=normalizePreferredOff(agent.preferredOff);
   var overrides=state.weekOverrides[wkKey]||{};
-  var best=null;
-  for(var i=0;i<7;i++){
-    var d=new Date(week.start);
-    d.setDate(d.getDate()+i);
-    var dow=d.getDay();
-    if(dow===5) continue;
-    var ds=fmtDate(d);
-    var itemKey=`${agent.id}|${ds}`;
-    var ov=overrides[itemKey];
-    if(leaveMap[itemKey] || holidayMap[itemKey]) continue;
-    if(ov && ov.status && ov.status!=='AUTO' && ov.status!=='WORK') continue;
-    var operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
-    var score=operationBias;
-    score += (weekLoad[dow]||0)*0.9;
-    score += (rec.dayCounts[dow]||0)*0.55;
-    if(prevDow===dow) score += 3;
-    if(preferred!==-1) score += (dow===preferred ? -0.35 : 0.15);
-    var isWeekend=(dow===0 || dow===6);
-    var monthKey=monthKeyFromDate(ds);
-    var monthWeekendCount=rec.monthWeekend[monthKey]||0;
-    if(monthWeekendCount===0) score += isWeekend ? -1.8 : 1.2;
-    else if(isWeekend) score += 0.85;
-    if(isWeekend) score += (rec.weekendCount||0)*0.35;
-    score += stableWeekNoise(`${agent.id}|${wkKey}|${dow}`)*0.15;
-    if(!best || score<best.score) best={date:ds,score:score,dow:dow};
+  var totalAgents=activeAgents().length;
+  var monthKey=monthKeyFromDate(fmtDate(week.start));
+
+  // Returns the date string for a given DOW in this week, or null if blocked
+  function dateForDow(dow){
+    for(var i=0;i<7;i++){
+      var d=new Date(week.start); d.setDate(d.getDate()+i);
+      if(d.getDay()!==dow) continue;
+      var ds=fmtDate(d);
+      var ik=agent.id+'|'+ds;
+      if(leaveMap[ik]||holidayMap[ik]) return null;
+      var ov=overrides[ik];
+      if(ov&&ov.status&&ov.status!=='AUTO'&&ov.status!=='WORK') return null;
+      return ds;
+    }
+    return null;
   }
-  return best?best.date:null;
+  function coverageOk(dow){ return (weekLoad[dow]||0)<(totalAgents-(requiredByDay[dow]||0)); }
+
+  // ── MONTHLY WEEKEND OFF ────────────────────────────────────────────────────
+  var alreadyWeekendThisMonth=(rec.monthWeekend[monthKey]||0)>=1;
+  if(!alreadyWeekendThisMonth){
+    var mi=getMonthInfo(monthKey);
+    var numWeeks=mi.weeks.length;
+    var targetIdx=agentWeekendWeekIndex(agent.id,monthKey,numWeeks);
+    var currentIdx=-1;
+    for(var wi=0;wi<mi.weeks.length;wi++){
+      if(fmtDate(mi.weeks[wi].start)===wkKey){currentIdx=wi;break;}
+    }
+    var isDesignatedWeek=(currentIdx===targetIdx);
+    var isLastWeek=(currentIdx===numWeeks-1);
+    if(isDesignatedWeek||isLastWeek){
+      var pref=agentWeekendSide(agent.id,monthKey);
+      var alt=pref===6?0:6;
+      var sides=[pref,alt];
+      for(var si=0;si<sides.length;si++){
+        var side=sides[si];
+        var ds=dateForDow(side);
+        if(ds&&coverageOk(side)) return ds;
+      }
+    }
+  }
+
+  // ── WEEKDAY OFF (Mon / Tue / Wed / Thu) ───────────────────────────────────
+  var prevWkKey=weekKey(new Date(week.start.getTime()-7*24*60*60*1000));
+  var prevDow=rec.weekly[prevWkKey];
+
+  var candidates=WEEKDAY_POOL.filter(function(dow){
+    if(dow===prevDow) return false;
+    if(!coverageOk(dow)) return false;
+    return dateForDow(dow)!==null;
+  });
+  if(!candidates.length){
+    candidates=WEEKDAY_POOL.filter(function(dow){
+      return coverageOk(dow)&&dateForDow(dow)!==null;
+    });
+  }
+  if(!candidates.length) return null;
+
+  candidates.sort(function(a,b){
+    var aLast=rec.lastWeekByDow[a]||'';
+    var bLast=rec.lastWeekByDow[b]||'';
+    if(aLast!==bLast) return aLast<bLast?-1:1;
+    return (weekLoad[a]||0)-(weekLoad[b]||0);
+  });
+
+  return dateForDow(candidates[0]);
 }
 function buildSecondOffHistory(week,leaveMap,holidayMap){
   var history={byAgent:{}};

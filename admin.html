@@ -650,8 +650,20 @@ function stableWeekNoise(seed){
   for(let i=0;i<seed.length;i++){ hash=((hash<<5)-hash)+seed.charCodeAt(i); hash|=0; }
   return Math.abs(hash%1000)/1000;
 }
+// ── SECOND OFF-DAY CONSTANTS ──────────────────────────────────────────────────
+// Weekday pool for the second off: Mon(1) Tue(2) Wed(3) Thu(4)
+const WEEKDAY_POOL=[1,2,3,4];
+
+// ── HISTORY RECORD ────────────────────────────────────────────────────────────
 function initOffHistoryRecord(){
-  return {dayCounts:{0:0,1:0,2:0,3:0,4:0,6:0},weekendCount:0,weekly:{},monthWeekend:{}};
+  return {
+    dayCounts:{0:0,1:0,2:0,3:0,4:0,6:0}, // total times each DOW was used
+    lastWeekByDow:{},   // dow -> wkKey of most recent week that DOW was used
+    weekendCount:0,     // total weekend second-offs received (all time)
+    lastWeekendDate:'', // dateStr of most recent weekend second-off
+    weekly:{},          // wkKey -> dow assigned that week
+    monthWeekend:{}     // monthKey -> count (should be 0 or 1 per month)
+  };
 }
 function getOffHistoryRecord(history,agentId){
   history.byAgent[agentId] ||= initOffHistoryRecord();
@@ -677,54 +689,110 @@ function registerSecondOff(history,agentId,dateStr,wkKey){
   const rec=getOffHistoryRecord(history,agentId);
   const dow=new Date(dateStr).getDay();
   rec.dayCounts[dow]=(rec.dayCounts[dow]||0)+1;
+  rec.lastWeekByDow[dow]=wkKey;
   rec.weekly[wkKey]=dow;
-  if(dow===0 || dow===6){
+  if(dow===0||dow===6){
     rec.weekendCount++;
+    rec.lastWeekendDate=dateStr;
     const mKey=monthKeyFromDate(dateStr);
     rec.monthWeekend[mKey]=(rec.monthWeekend[mKey]||0)+1;
   }
 }
+
+// ── WEEKEND-OFF HELPERS ───────────────────────────────────────────────────────
+// Deterministic Sat(6) or Sun(0) assignment for this agent in this month
+function agentWeekendSide(agentId,monthKey){
+  let h=0; const s=String(agentId)+'|'+monthKey+'|side';
+  for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return Math.abs(h)%2===0?6:0;
+}
+// Which week-index (0-based, within the month's weeks) is this agent's "designated weekend off" week
+function agentWeekendWeekIndex(agentId,monthKey,numWeeks){
+  let h=0; const s=String(agentId)+'|'+monthKey+'|widx';
+  for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return Math.abs(h)%numWeeks;
+}
+
+// ── CORE PICKER ───────────────────────────────────────────────────────────────
 function pickSecondOffDate(agent,week,leaveMap,holidayMap,history,weekLoad){
   const wkKey=weekKey(week.start);
-  const prevWeekStart=new Date(week.start);
-  prevWeekStart.setDate(prevWeekStart.getDate()-7);
-  const prevWkKey=weekKey(prevWeekStart);
   const rec=getOffHistoryRecord(history,agent.id);
-  const prevDow=rec.weekly[prevWkKey];
-  const preferred=normalizePreferredOff(agent.preferredOff);
   const overrides=state.weekOverrides[wkKey]||{};
-  let best=null;
-  for(let i=0;i<7;i++){
-    const d=new Date(week.start);
-    d.setDate(d.getDate()+i);
-    const dow=d.getDay();
-    if(dow===5) continue; // Friday fixed off handled separately
-    const ds=fmtDate(d);
-    const itemKey=`${agent.id}|${ds}`;
-    const ov=overrides[itemKey];
-    if(leaveMap[itemKey] || holidayMap[itemKey]) continue;
-    if(ov && ov.status && ov.status!=='AUTO' && ov.status!=='WORK') continue;
-    const operationBias=(dow===4?0.2:0)+(dow===6?0.5:0)+(dow===0?0.8:0)+(dow===1?1:0)+(dow===2?1.2:0)+(dow===3?1.5:0);
-    let score=operationBias;
-    score += (weekLoad[dow]||0)*0.9;
-    score += (rec.dayCounts[dow]||0)*0.55;
-    if(prevDow===dow) score += 3;
-    if(preferred!==-1){
-      score += (dow===preferred ? -0.35 : 0.15);
+  const totalAgents=activeAgents().length;
+  const monthKey=monthKeyFromDate(fmtDate(week.start));
+
+  // Returns the date string for a given DOW in this week, or null if blocked
+  const dateForDow=(dow)=>{
+    for(let i=0;i<7;i++){
+      const d=new Date(week.start); d.setDate(d.getDate()+i);
+      if(d.getDay()!==dow) continue;
+      const ds=fmtDate(d);
+      const ik=`${agent.id}|${ds}`;
+      if(leaveMap[ik]||holidayMap[ik]) return null;
+      const ov=overrides[ik];
+      if(ov&&ov.status&&ov.status!=='AUTO'&&ov.status!=='WORK') return null;
+      return ds;
     }
-    const isWeekend=(dow===0 || dow===6);
-    const monthKey=monthKeyFromDate(ds);
-    const monthWeekendCount=rec.monthWeekend[monthKey]||0;
-    if(monthWeekendCount===0){
-      score += isWeekend ? -1.8 : 1.2; // ensure each agent gets a weekend off once per month when possible
-    }else if(isWeekend){
-      score += 0.85;
+    return null;
+  };
+  // Can we put one more agent off on this DOW without breaking coverage?
+  const coverageOk=(dow)=>(weekLoad[dow]||0)<(totalAgents-(requiredByDay[dow]||0));
+
+  // ── MONTHLY WEEKEND OFF ────────────────────────────────────────────────────
+  // Each agent gets exactly ONE weekend second-off per month (Sat or Sun).
+  const alreadyWeekendThisMonth=(rec.monthWeekend[monthKey]||0)>=1;
+  if(!alreadyWeekendThisMonth){
+    const mi=getMonthInfo(monthKey);
+    const numWeeks=mi.weeks.length;
+    const targetIdx=agentWeekendWeekIndex(agent.id,monthKey,numWeeks);
+    // Identify the current week's position within this month
+    let currentIdx=-1;
+    for(let wi=0;wi<mi.weeks.length;wi++){
+      if(fmtDate(mi.weeks[wi].start)===wkKey){currentIdx=wi;break;}
     }
-    if(isWeekend) score += (rec.weekendCount||0)*0.35;
-    score += stableWeekNoise(`${agent.id}|${wkKey}|${dow}`)*0.15;
-    if(!best || score<best.score) best={date:ds,score,dow};
+    const isDesignatedWeek=(currentIdx===targetIdx);
+    const isLastWeek=(currentIdx===numWeeks-1);
+    if(isDesignatedWeek||isLastWeek){
+      // Try preferred side then the other side (Sat / Sun)
+      const pref=agentWeekendSide(agent.id,monthKey);
+      const alt=pref===6?0:6;
+      for(const side of[pref,alt]){
+        const ds=dateForDow(side);
+        if(ds&&coverageOk(side)) return ds;
+      }
+      // Weekend coverage maxed out → fall through to weekday this week.
+      // If this was not the last week the agent will get another attempt;
+      // on the last week we accept the miss rather than violate coverage.
+    }
   }
-  return best?best.date:null;
+
+  // ── WEEKDAY OFF (Mon / Tue / Wed / Thu) ───────────────────────────────────
+  // No-repeat rule: never the same DOW as last week
+  const prevWkKey=weekKey(new Date(week.start.getTime()-7*24*60*60*1000));
+  const prevDow=rec.weekly[prevWkKey];
+
+  // Build candidate list honouring no-repeat + coverage + leave/holiday
+  let candidates=WEEKDAY_POOL.filter(dow=>{
+    if(dow===prevDow) return false;   // HARD: no two consecutive same days
+    if(!coverageOk(dow)) return false;
+    return dateForDow(dow)!==null;
+  });
+  // Relax no-repeat only if every eligible weekday is the previous DOW
+  if(!candidates.length){
+    candidates=WEEKDAY_POOL.filter(dow=>coverageOk(dow)&&dateForDow(dow)!==null);
+  }
+  if(!candidates.length) return null; // agent on leave / coverage impossible
+
+  // Sort by Least-Recently-Used (oldest lastWeekByDow string wins)
+  // Tiebreak: lower weekLoad → better coverage spread
+  candidates.sort((a,b)=>{
+    const aLast=rec.lastWeekByDow[a]||'';
+    const bLast=rec.lastWeekByDow[b]||'';
+    if(aLast!==bLast) return aLast<bLast?-1:1;
+    return (weekLoad[a]||0)-(weekLoad[b]||0);
+  });
+
+  return dateForDow(candidates[0]);
 }
 function buildSecondOffHistory(week,leaveMap,holidayMap){
   const history={byAgent:{}};
