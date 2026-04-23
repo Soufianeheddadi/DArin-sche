@@ -900,7 +900,7 @@ function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfte
     let blocked=false;
     let score=0;
     for(let m=t; m<t+duration; m+=15){
-      if((usage[m]||0)>=2){ blocked=true; break; }
+      if((usage[m]||0)>=3){ blocked=true; break; } // Allow up to 3 agents on break
       score += demandAtMinute(dateStr,m) + ((usage[m]||0)*250);
     }
     if(blocked) continue;
@@ -934,26 +934,59 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
   shiftIds.forEach(shift=>{
     let idx=0;
-    activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
-      const p=weekPlan[`${agent.id}|${dateStr}`];
-      if(!p || p.status!=='WORK') return;
-      const ov=getBreakOverride(agent.id,dateStr);
-      if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
-      if(hasDemand){
-        const selected=buildDemandAwareBreaks(agent,dateStr,usage);
+    // Group agents by language for pairing
+    const agentsOfShift = activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift));
+    const arabic = agentsOfShift.filter(a => /arabic/i.test(a.lang));
+    const english = agentsOfShift.filter(a => /english/i.test(a.lang) && !/arabic/i.test(a.lang));
+    // Assign breaks in rounds, pairing English and Arabic where possible
+    const assigned = new Set();
+    while (assigned.size < agentsOfShift.length) {
+      // Try to pair one Arabic and one English agent for this slot
+      let group = [];
+      if (arabic.length > 0 && english.length > 0) {
+        const a = arabic.find(a => !assigned.has(a.id));
+        const e = english.find(e => !assigned.has(e.id));
+        if (a && e) {
+          group = [a, e];
+        }
+      }
+      // If not enough for a pair, fill with any remaining agent
+      if (group.length < 2) {
+        const next = agentsOfShift.find(a => !assigned.has(a.id));
+        if (next && !group.includes(next)) group.push(next);
+      }
+      // If still less than 2, try to fill up to 3
+      while (group.length < 3) {
+        const next = agentsOfShift.find(a => !assigned.has(a.id) && !group.includes(a));
+        if (!next) break;
+        group.push(next);
+      }
+      // Assign break slot to this group
+      group.forEach(agent => {
+        if (!agent || assigned.has(agent.id)) return;
+        const p=weekPlan[`${agent.id}|${dateStr}`];
+        if(!p || p.status!=='WORK') { assigned.add(agent.id); return; }
+        const ov=getBreakOverride(agent.id,dateStr);
+        if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); assigned.add(agent.id); return; }
+        if(hasDemand){
+          const selected=buildDemandAwareBreaks(agent,dateStr,usage);
+          result[agent.id]=selected;
+          assigned.add(agent.id);
+          return;
+        }
+        const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
+        let selected=templates[idx % templates.length];
+        // Only allow up to 3 agents per slot
+        for(let step=0; step<templates.length; step++) {
+          const cand=templates[(idx+step) % templates.length];
+          if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=3) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+        }
         result[agent.id]=selected;
-        return;
-      }
-      const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
-      let selected=templates[idx % templates.length];
-      for(let step=0; step<templates.length; step++) {
-        const cand=templates[(idx+step) % templates.length];
-        if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
-      }
-      result[agent.id]=selected;
-      selected.forEach(x=>reserveUsage(usage,x));
+        selected.forEach(x=>reserveUsage(usage,x));
+        assigned.add(agent.id);
+      });
       idx++;
-    });
+    }
   });
   return result;
 }
