@@ -604,7 +604,7 @@ function pickLowestDemandRange(dateStr, fromMin, toMin, duration, usage, minAfte
     var blocked=false;
     var score=0;
     for(var m=t; m<t+duration; m+=15){
-      if((usage[m]||0)>=2){ blocked=true; break; }
+      if((usage[m]||0)>=3){ blocked=true; break; }
       score += demandAtMinute(dateStr,m) + ((usage[m]||0)*250);
     }
     if(blocked) continue;
@@ -636,27 +636,61 @@ function buildBreakPlanForDate(dateStr,weekPlan){
   const usage={};
   const hasDemand=!!getBreakDemandForDate(dateStr);
   const shiftIds=[...new Set(activeAgents().map(agent=>String(getShiftTimeInfo(agent,dateStr).shift)))];
-  shiftIds.forEach(shift=>{
-    let idx=0;
-    activeAgents().filter(agent=>String(getShiftTimeInfo(agent,dateStr).shift)===String(shift)).forEach(agent=>{
-      const p=weekPlan[`${agent.id}|${dateStr}`];
-      if(!p || p.status!=='WORK') return;
-      const ov=getBreakOverride(agent.id,dateStr);
-      if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(x=>reserveUsage(usage,x)); return; }
-      if(hasDemand){
-        result[agent.id]=buildDemandAwareBreaks(agent,dateStr,usage);
-        return;
+  shiftIds.forEach(function(shift){
+    var idx=0;
+    // Group agents by language for pairing
+    var agentsOfShift = activeAgents().filter(function(agent){return String(getShiftTimeInfo(agent,dateStr).shift)===String(shift);});
+    var arabic = agentsOfShift.filter(function(a){ return /arabic/i.test(a.lang); });
+    var english = agentsOfShift.filter(function(a){ return /english/i.test(a.lang) && !/arabic/i.test(a.lang); });
+    // Assign breaks in rounds, pairing English and Arabic where possible
+    var assigned = new Set();
+    while (assigned.size < agentsOfShift.length) {
+      // Try to pair one Arabic and one English agent for this slot
+      var group = [];
+      if (arabic.length > 0 && english.length > 0) {
+        var a = arabic.find(function(a){ return !assigned.has(a.id); });
+        var e = english.find(function(e){ return !assigned.has(e.id); });
+        if (a && e) {
+          group = [a, e];
+        }
       }
-      const templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
-      let selected=templates[idx % templates.length];
-      for(let step=0; step<templates.length; step++) {
-        const cand=templates[(idx+step) % templates.length];
-        if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(x=>{ const range=parseRangeMinutes(x); for(let t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=2) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+      // If not enough for a pair, fill with any remaining agent
+      if (group.length < 2) {
+        var next = agentsOfShift.find(function(a){ return !assigned.has(a.id); });
+        if (next && group.indexOf(next)===-1) group.push(next);
       }
-      result[agent.id]=selected;
-      selected.forEach(x=>reserveUsage(usage,x));
+      // If still less than 2, try to fill up to 3
+      while (group.length < 3) {
+        var next = agentsOfShift.find(function(a){ return !assigned.has(a.id) && group.indexOf(a)===-1; });
+        if (!next) break;
+        group.push(next);
+      }
+      // Assign break slot to this group
+      group.forEach(function(agent){
+        if (!agent || assigned.has(agent.id)) return;
+        var p=weekPlan[agent.id+'|'+dateStr];
+        if(!p || p.status!=='WORK') { assigned.add(agent.id); return; }
+        var ov=getBreakOverride(agent.id,dateStr);
+        if(ov && hasValidBreakStructure(ov) && hasMaxBreakGap(ov,180)){ result[agent.id]=ov; ov.forEach(function(x){reserveUsage(usage,x);}); assigned.add(agent.id); return; }
+        if(hasDemand){
+          var selected=buildDemandAwareBreaks(agent,dateStr,usage);
+          result[agent.id]=selected;
+          assigned.add(agent.id);
+          return;
+        }
+        var templates=getBreakTemplatesForAgent(agent,dateStr)||breakTemplates[shift]||breakTemplates[1];
+        var selected=templates[idx % templates.length];
+        // Only allow up to 3 agents per slot
+        for(var step=0; step<templates.length; step++) {
+          var cand=templates[(idx+step) % templates.length];
+          if(hasValidBreakStructure(cand) && hasMaxBreakGap(cand,180) && cand.every(function(x){ var range=parseRangeMinutes(x); for(var t=range.start;t<range.end;t+=15){ if((usage[t]||0)>=3) return false; } return true; })) { selected=cand; idx=(idx+step+1); break; }
+        }
+        result[agent.id]=selected;
+        selected.forEach(function(x){reserveUsage(usage,x);});
+        assigned.add(agent.id);
+      });
       idx++;
-    });
+    }
   });
   return result;
 }
